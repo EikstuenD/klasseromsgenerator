@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Klasseromsgenerator</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Font Awesome for ikoner -->
+    <!-- Henter ikoner fra FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
@@ -13,15 +13,17 @@
 <div class="app-container">
     <!-- SIDEBAR: Kontrollpanel -->
     <div class="sidebar">
-        <h1>Klasserom</h1>
+        <h1><i class="fas fa-graduation-cap"></i> Klasserom</h1>
         
+        <!-- 1. ELEVER -->
         <div class="section">
             <h3>1. Elever</h3>
             <textarea id="studentInput" placeholder="Skriv inn navn (ett per linje)..."></textarea>
             <button onclick="parseStudents()">Oppdater elevliste</button>
-            <div id="studentListCount">0 elever registrert</div>
+            <div id="studentListCount" style="margin-top:5px; font-style:italic; font-size:0.9rem;">0 elever registrert</div>
         </div>
 
+        <!-- 2. REGLER -->
         <div class="section">
             <h3>2. Regler & Hensyn</h3>
             <div class="tabs">
@@ -35,27 +37,26 @@
                     <select id="conStudent1"></select>
                     <span>skal ikke sitte med</span>
                     <select id="conStudent2"></select>
-                    <button onclick="addConstraint()"><i class="fas fa-plus"></i></button>
+                    <button onclick="addConstraint()"><i class="fas fa-plus"></i> Legg til regel</button>
                 </div>
                 <ul id="constraintList" class="small-list"></ul>
             </div>
 
             <!-- Tab: Egenskaper (Sitte foran) -->
             <div id="tab-attributes" class="tab-content">
-                <p>Kryss av for elever som må sitte foran:</p>
+                <p style="font-size:0.9rem;">Kryss av for elever som må sitte <strong>foran</strong> i klasserommet:</p>
                 <ul id="attributeList" class="small-list check-list"></ul>
             </div>
         </div>
 
+        <!-- 3. MØBLERING -->
         <div class="section">
-            <h3>3. Innredning</h3>
-            <div class="section">
-            <h3>3. Møbelbank / Innredning</h3>
+            <h3>3. Møbelbank</h3>
             <div class="room-controls">
                 <button onclick="clearDesks()" class="danger-btn"><i class="fas fa-trash"></i> Tøm rommet</button>
             </div>
             
-            <p><small>Klikk for å legge til:</small></p>
+            <p style="font-size:0.9rem; margin-bottom:5px;">Klikk for å sette inn:</p>
             <div class="furniture-bank">
                 <button onclick="addPreset('single')" title="Enkel pult"><i class="fas fa-square"></i> Enkel</button>
                 <button onclick="addPreset('pair')" title="To og to"><i class="fas fa-user-friends"></i> Par</button>
@@ -66,17 +67,24 @@
             </div>
         </div>
 
+        <!-- 4. GENERER -->
         <div class="section highlight-section">
             <h3>4. Generer</h3>
             <button class="generate-btn" onclick="generateSeating()">Plasser elever <i class="fas fa-random"></i></button>
-            <p><small>Tips: Du kan dra pulter for å flytte dem, og dra elever mellom pulter for å bytte plass.</small></p>
+            <p style="margin-top:10px; font-size:0.85rem; color:#555;">
+                <i class="fas fa-info-circle"></i> 
+                Husk å skru av "Innredningsmodus" for å flytte på elever manuelt.
+            </p>
         </div>
     </div>
 
     <!-- HOVEDOMRÅDE: Klasserommet -->
     <div class="main-area">
         <div class="toolbar">
-            <label><input type="checkbox" id="editMode" onchange="toggleEditMode()"> Innredningsmodus (Flytt pulter)</label>
+            <label class="toggle-label">
+                <input type="checkbox" id="editMode" onchange="toggleEditMode()"> 
+                <strong>Innredningsmodus</strong> (Flytt pulter)
+            </label>
             <button onclick="printClassroom()"><i class="fas fa-print"></i> Skriv ut</button>
         </div>
         
