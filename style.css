@@ -195,3 +195,26 @@ button:hover { background: #357abd; }
     #classroom { border: 1px solid #000; height: 1000px; } /* Force height for print */
     .desk { border: 2px solid #000; box-shadow: none; }
 }
+/* Ny styling for møbelbanken */
+.furniture-bank {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.furniture-bank button {
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: #f0f0f0;
+    color: #333;
+    border: 1px solid #ccc;
+    margin-top: 0; /* Override default button margin */
+}
+
+.furniture-bank button:hover {
+    background-color: #e0e0e0;
+}
