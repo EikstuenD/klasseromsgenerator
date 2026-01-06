@@ -19,8 +19,32 @@ let selectionBoxStart = { x: 0, y: 0 };
 
 let draggedStudent = null;
 
+/* VIKTIG: SLETT-FUNKSJONEN */
+function deleteSelectedDesks() {
+    // Sjekk om vi faktisk har valgt noe
+    if (selectedDeskIds.size === 0) {
+        alert("Ingen pulter er markert. Klikk på en pult først.");
+        return;
+    }
+
+    // Gå gjennom alle ID-ene som er valgt
+    selectedDeskIds.forEach(id => {
+        // Fjern elever og låser koblet til pulten
+        delete assignments[id];
+        delete locks[id];
+    });
+
+    // Lag en ny liste med pulter som IKKE er i "slett"-listen
+    desks = desks.filter(desk => !selectedDeskIds.has(desk.id));
+
+    // Nullstill valget og tegn opp på nytt
+    selectedDeskIds.clear();
+    renderDesks();
+}
+
 /* INITIALISERING */
 document.addEventListener('DOMContentLoaded', () => {
+    // Standard data
     document.getElementById('studentInput').value = "Ola\nKari\nPer\nPål\nEspen\nAskeladd\nSofie\nNora\nJakob\nEmma\nLinus\nSara";
     parseStudents();
     
@@ -31,13 +55,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Lyttere for mus og tastatur
     const room = document.getElementById('classroom');
-    room.addEventListener('mousedown', handleRoomMouseDown);
+    if(room) {
+        room.addEventListener('mousedown', handleRoomMouseDown);
+    }
     window.addEventListener('mousemove', handleGlobalMouseMove);
     window.addEventListener('mouseup', handleGlobalMouseUp);
     
-    // Lytter for Slette-tasten
+    // Lytter for Slette-tasten (Delete / Backspace)
     document.addEventListener('keydown', (e) => {
         if (!editMode) return; 
+        // Ikke slett hvis man skriver i et tekstfelt
         if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
 
         if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -61,6 +88,7 @@ function parseStudents() {
 function updateSelectBoxes() {
     const s1 = document.getElementById('conStudent1');
     const s2 = document.getElementById('conStudent2');
+    if(!s1 || !s2) return;
     s1.innerHTML = ''; s2.innerHTML = '';
     students.sort().forEach(name => {
         s1.add(new Option(name, name));
@@ -70,6 +98,7 @@ function updateSelectBoxes() {
 
 function updateAttributeList() {
     const list = document.getElementById('attributeList');
+    if(!list) return;
     list.innerHTML = '';
     students.sort().forEach(name => {
         const isFront = studentAttributes[name]?.front || false;
@@ -89,8 +118,13 @@ function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
     document.getElementById('tab-' + tabName).classList.add('active');
-    const buttons = document.querySelectorAll('.tab-btn');
-    if(tabName === 'constraints') buttons[0].classList.add('active'); else buttons[1].classList.add('active');
+    
+    // Enkel håndtering av knappestil
+    const btns = document.querySelectorAll('.tab-btn');
+    if(btns.length > 1) {
+        if(tabName === 'constraints') btns[0].classList.add('active');
+        else btns[1].classList.add('active');
+    }
 }
 
 function addConstraint() {
@@ -126,22 +160,6 @@ function clearDesks() {
         desks = []; assignments = {}; locks = {}; selectedDeskIds.clear();
         renderDesks();
     }
-}
-
-function deleteSelectedDesks() {
-    if (selectedDeskIds.size === 0) {
-        alert("Marker pulter først.");
-        return;
-    }
-    // Fjern data knyttet til pultene
-    selectedDeskIds.forEach(id => {
-        delete assignments[id];
-        delete locks[id];
-    });
-    // Fjern fra listen
-    desks = desks.filter(d => !selectedDeskIds.has(d.id));
-    selectedDeskIds.clear();
-    renderDesks();
 }
 
 function addPreset(type) {
@@ -242,6 +260,8 @@ function handleDeskMouseDown(e, deskId) {
         }
         renderDesks(); 
     } else {
+        // Hvis pulten ikke allerede er valgt, velg KUN denne.
+        // Hvis den allerede ER valgt, gjør vi ingenting (for å tillate drag av hele gruppa)
         if (!selectedDeskIds.has(deskId)) {
             selectedDeskIds.clear();
             selectedDeskIds.add(deskId);
@@ -277,11 +297,13 @@ function handleRoomMouseDown(e) {
     };
     
     const boxEl = document.getElementById('selection-box');
-    boxEl.style.left = selectionBoxStart.x + 'px';
-    boxEl.style.top = selectionBoxStart.y + 'px';
-    boxEl.style.width = '0px';
-    boxEl.style.height = '0px';
-    boxEl.style.display = 'block';
+    if(boxEl) {
+        boxEl.style.left = selectionBoxStart.x + 'px';
+        boxEl.style.top = selectionBoxStart.y + 'px';
+        boxEl.style.width = '0px';
+        boxEl.style.height = '0px';
+        boxEl.style.display = 'block';
+    }
 }
 
 function handleGlobalMouseMove(e) {
@@ -330,10 +352,12 @@ function handleGlobalMouseMove(e) {
         const h = Math.abs(currentY - selectionBoxStart.y);
 
         const boxEl = document.getElementById('selection-box');
-        boxEl.style.left = x + 'px';
-        boxEl.style.top = y + 'px';
-        boxEl.style.width = w + 'px';
-        boxEl.style.height = h + 'px';
+        if(boxEl) {
+            boxEl.style.left = x + 'px';
+            boxEl.style.top = y + 'px';
+            boxEl.style.width = w + 'px';
+            boxEl.style.height = h + 'px';
+        }
 
         desks.forEach(desk => {
             const dLeft = desk.left;
@@ -361,7 +385,8 @@ function handleGlobalMouseUp(e) {
     if(isDraggingDesks) isDraggingDesks = false;
     if(isSelecting) {
         isSelecting = false;
-        document.getElementById('selection-box').style.display = 'none';
+        const box = document.getElementById('selection-box');
+        if(box) box.style.display = 'none';
         renderDesks();
     }
 }
