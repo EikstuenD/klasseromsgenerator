@@ -15,10 +15,15 @@ let dragOffsetY = 0;
 
 /* INITIALISERING */
 document.addEventListener('DOMContentLoaded', () => {
-    // Legg til noen eksempler
-    document.getElementById('studentInput').value = "Ola\nKari\nPer\nPål\nEspen\nAskeladd\nSofie\nNora";
+    // Legg til noen eksempler ved start
+    document.getElementById('studentInput').value = "Ola\nKari\nPer\nPål\nEspen\nAskeladd\nSofie\nNora\nJakob\nEmma";
     parseStudents();
-    layoutGrid(2); // Start med 2 og 2
+    
+    // Sett inn noen pulter for demo
+    addPreset('group4'); 
+    // Flytt dem litt så de ikke dekker tavla
+    desks.forEach(d => { d.top += 50; d.left += 100; });
+    renderDesks();
 });
 
 /* 1. ELEV HÅNDTERING */
@@ -52,8 +57,10 @@ function updateAttributeList() {
         
         li.innerHTML = `
             ${name}
-            <input type="checkbox" ${isFront ? 'checked' : ''} 
-            onchange="toggleAttribute('${name}', 'front')">
+            <label style="cursor:pointer">
+                <input type="checkbox" ${isFront ? 'checked' : ''} 
+                onchange="toggleAttribute('${name}', 'front')">
+            </label>
         `;
         list.appendChild(li);
     });
@@ -69,7 +76,10 @@ function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
     document.getElementById('tab-' + tabName).classList.add('active');
-    // Enkel CSS logikk for knapper kan legges til om ønskelig
+    // Knappestyling
+    const buttons = document.querySelectorAll('.tab-btn');
+    if(tabName === 'constraints') buttons[0].classList.add('active');
+    else buttons[1].classList.add('active');
 }
 
 function addConstraint() {
@@ -77,7 +87,6 @@ function addConstraint() {
     const s2 = document.getElementById('conStudent2').value;
 
     if (s1 && s2 && s1 !== s2) {
-        // Sjekk om finnes
         const exists = constraints.some(c => 
             (c.p1 === s1 && c.p2 === s2) || (c.p1 === s2 && c.p2 === s1)
         );
@@ -94,8 +103,10 @@ function renderConstraints() {
     list.innerHTML = '';
     constraints.forEach((c, index) => {
         const li = document.createElement('li');
-        li.innerHTML = `${c.p1} <i class="fas fa-ban" style="color:red"></i> ${c.p2} 
-                        <i class="fas fa-trash" style="cursor:pointer" onclick="removeConstraint(${index})"></i>`;
+        li.innerHTML = `
+            <span>${c.p1} <i class="fas fa-ban" style="color:red; margin:0 5px;"></i> ${c.p2}</span>
+            <i class="fas fa-trash" style="cursor:pointer; color:#999;" onclick="removeConstraint(${index})"></i>
+        `;
         list.appendChild(li);
     });
 }
@@ -110,7 +121,7 @@ function addDesk(top = 100, left = 100) {
     deskCounter++;
     const deskId = `desk-${deskCounter}`;
     desks.push({ id: deskId, top: top, left: left });
-    renderDesks();
+    // Ikke render her hvis vi skal legge til mange (håndteres av presets)
 }
 
 function clearDesks() {
@@ -122,53 +133,14 @@ function clearDesks() {
     }
 }
 
-function layoutGrid(cols) {
-    desks = [];
-    assignments = {};
-    locks = {};
-    
-    // Enkle parametere for grid
-    const startX = 50;
-    const startY = 100;
-    const gapX = 120; // Pult bredde + mellomrom
-    const gapY = 80;  // Pult høyde + mellomrom
-    const groupGap = 40; // Ekstra mellomrom mellom grupper
-
-    // Beregn basert på antall elever
-    const count = Math.max(students.length, 10); // Minst 10 pulter
-    
-    let currentRow = 0;
-    let currentCol = 0;
-
-    for (let i = 0; i < count; i++) {
-        let x = startX + (currentCol * gapX);
-        let y = startY + (currentRow * gapY);
-
-        // Legg til ekstra gap for grupper (hvis cols > 1)
-        if (cols > 1 && (i % cols === 0) && i !== 0) {
-           // x += groupGap; // Hvis vi ville hatt horisontale grupper
-        }
-
-        addDesk(y, x); // Legger til i state
-
-        currentCol++;
-        // Hvis vi har fylt en "rad" av grupper eller nådd kanten (forenklet her)
-        if (currentCol >= 6) { // Maks 6 i bredden for demo
-            currentCol = 0;
-            currentRow++;
-        }
-    }
-    renderDesks();
-}
-/* Ny funksjon for å legge til grupper av pulter */
+// Møbelbank logikk
 function addPreset(type) {
-    // Startposisjon for nye grupper (midt i rommet ca, med litt tilfeldig variasjon så de ikke legger seg oppå hverandre)
-    const startX = 200 + (Math.random() * 50);
+    // Plasser litt tilfeldig i senter
+    const startX = 250 + (Math.random() * 50);
     const startY = 150 + (Math.random() * 50);
     
-    // Dimensjoner (Må matche CSS: width 100px, height 60px + litt luft)
-    const w = 110; 
-    const h = 80; 
+    const w = 110; // pult bredde + luft
+    const h = 80;  // pult høyde + luft
 
     const offsets = [];
 
@@ -176,53 +148,51 @@ function addPreset(type) {
         case 'single':
             offsets.push({x: 0, y: 0});
             break;
-            
         case 'pair':
-            offsets.push({x: 0, y: 0});
-            offsets.push({x: w, y: 0});
+            offsets.push({x: 0, y: 0}, {x: w, y: 0});
             break;
-
         case 'row4':
             offsets.push({x: 0, y: 0}, {x: w, y: 0}, {x: w*2, y: 0}, {x: w*3, y: 0});
             break;
-
         case 'group4': // 2x2 boks
             offsets.push({x: 0, y: 0}, {x: w, y: 0});
             offsets.push({x: 0, y: h}, {x: w, y: h});
             break;
-            
-        case 'group3': // En slags trekant/L-form
+        case 'group3': // Trekant
             offsets.push({x: 0, y: 0}, {x: w, y: 0});
-            offsets.push({x: w/2, y: h}); // En midt under
+            offsets.push({x: w/2, y: h}); 
             break;
-
-        case 'horseshoe': // Liten hestesko på 5 pulter
-            // Venstre side
-            offsets.push({x: 0, y: h}, {x: 0, y: 0}); 
-            // Topp/Midt
-            offsets.push({x: w, y: 0});
-            // Høyre side
-            offsets.push({x: w*2, y: 0}, {x: w*2, y: h});
+        case 'horseshoe': // Hestesko (5)
+            offsets.push({x: 0, y: h}, {x: 0, y: 0}); // Venstre
+            offsets.push({x: w, y: 0}); // Topp
+            offsets.push({x: w*2, y: 0}, {x: w*2, y: h}); // Høyre
             break;
     }
 
-    // Generer pultene basert på offsets
     offsets.forEach(offset => {
         addDesk(startY + offset.y, startX + offset.x);
     });
+    
+    renderDesks();
+    
+    // Slå på edit mode automatisk så brukeren skjønner de kan flyttes
+    if(!editMode) {
+        document.getElementById('editMode').checked = true;
+        toggleEditMode();
+    }
 }
+
 function toggleEditMode() {
     editMode = document.getElementById('editMode').checked;
-    renderDesks(); // Re-render for å oppdatere cursor styles
+    renderDesks(); 
 }
 
 /* RENDERING AV KLASSEROM */
 function renderDesks() {
     const room = document.getElementById('classroom');
-    // Behold Tavle, fjern pulter
     const board = room.querySelector('.board');
     room.innerHTML = '';
-    room.appendChild(board);
+    room.appendChild(board); // Behold tavla
 
     desks.forEach(desk => {
         const deskEl = document.createElement('div');
@@ -231,36 +201,41 @@ function renderDesks() {
         deskEl.style.top = desk.top + 'px';
         deskEl.style.left = desk.left + 'px';
 
-        // Drag events for PULT (Innredning)
-        deskEl.addEventListener('mousedown', (e) => startDragDesk(e, desk.id));
-        
-        // Drag events for ELEV (Swap) - Drop Zone
-        deskEl.addEventListener('dragover', handleDragOver);
-        deskEl.addEventListener('drop', handleDropStudent);
+        // EVENTS
+        if(editMode) {
+            deskEl.addEventListener('mousedown', (e) => startDragDesk(e, desk.id));
+        } else {
+            // Drop zone events for elever
+            deskEl.addEventListener('dragover', handleDragOver);
+            deskEl.addEventListener('drop', handleDropStudent);
+        }
 
-        // Hvis det er en elev tildelt
+        // VIS ELEV
         if (assignments[desk.id]) {
             const studentName = assignments[desk.id];
             const isLocked = locks[desk.id];
             
             const card = document.createElement('div');
             card.className = `student-card ${isLocked ? 'locked' : ''}`;
-            card.draggable = true;
-            card.innerText = studentName;
-            card.dataset.deskId = desk.id; // Hvor kom den fra
             
-            // Legg til lås-ikon hvis låst
+            // Kun draggable hvis ikke i edit mode
+            if(!editMode) card.draggable = true;
+            
+            card.innerText = studentName;
+            card.dataset.deskId = desk.id; 
+            
             if(isLocked) {
-                card.innerHTML += ' <i class="fas fa-lock" style="font-size:10px; color:#f39c12"></i>';
+                card.innerHTML += ' <i class="fas fa-lock lock-icon"></i>';
             }
 
-            // Klikk for å låse/låse opp
+            // Dobbeltklikk for lås
             card.addEventListener('dblclick', (e) => {
                 e.stopPropagation();
                 toggleLock(desk.id);
             });
 
-            card.addEventListener('dragstart', handleDragStartStudent);
+            if(!editMode) card.addEventListener('dragstart', handleDragStartStudent);
+            
             deskEl.appendChild(card);
         }
 
@@ -268,16 +243,12 @@ function renderDesks() {
     });
 }
 
-/* 4. DRAG AND DROP - LOGIKK */
-
-// --- Flytte Pulter (Edit Mode) ---
+/* 4. DRAG AND DROP - PULTER (Innredning) */
 function startDragDesk(e, deskId) {
     if (!editMode) return;
-    
     draggedDesk = desks.find(d => d.id === deskId);
     const el = document.getElementById(deskId);
     
-    // Beregn offset slik at pulten ikke hopper til musepeker
     const rect = el.getBoundingClientRect();
     dragOffsetX = e.clientX - rect.left;
     dragOffsetY = e.clientY - rect.top;
@@ -288,12 +259,12 @@ function startDragDesk(e, deskId) {
 
 function moveDesk(e) {
     if (!draggedDesk) return;
-    
     const room = document.getElementById('classroom').getBoundingClientRect();
+    
     let newLeft = e.clientX - room.left - dragOffsetX;
     let newTop = e.clientY - room.top - dragOffsetY;
 
-    // Grid snap (valgfritt, gjør det penere)
+    // Grid snap (10px)
     newLeft = Math.round(newLeft / 10) * 10; 
     newTop = Math.round(newTop / 10) * 10;
 
@@ -311,10 +282,10 @@ function stopDragDesk() {
     document.removeEventListener('mouseup', stopDragDesk);
 }
 
-// --- Flytte Elever (Swap) ---
+/* 5. DRAG AND DROP - ELEVER (Bytte plasser) */
 function handleDragStartStudent(e) {
     draggedStudent = {
-        name: this.innerText.trim(), // NB: Fjerner ikonet tekstmessig hvis textContent brukes blindt, men innerText er ok her
+        name: this.innerText.trim(), 
         fromDesk: this.dataset.deskId
     };
     e.dataTransfer.effectAllowed = "move";
@@ -328,156 +299,123 @@ function handleDragOver(e) {
     }
 }
 
-// Fjern styling når vi drar ut
-document.addEventListener('dragenter', (e) => {
-    if (e.target.classList && e.target.classList.contains('desk')) {
-        // e.target.classList.add('drag-over');
-    }
-}, true);
+// Fjern drag-over effekt
 document.addEventListener('dragleave', (e) => {
     if (e.target.classList && e.target.classList.contains('desk')) {
         e.target.classList.remove('drag-over');
     }
 }, true);
 
-
 function handleDropStudent(e) {
     e.preventDefault();
     this.classList.remove('drag-over');
-    if (editMode) return; // Kan ikke bytte elever mens vi innreder
+    if (editMode) return; 
 
     const targetDeskId = this.id;
     const sourceDeskId = draggedStudent.fromDesk;
 
-    // Bytt plass logic
-    const studentInTarget = assignments[targetDeskId];
-    const studentInSource = assignments[sourceDeskId]; // = draggedStudent.name (men cleanset for ikontekst)
+    // Swap logikk
+    const targetStudent = assignments[targetDeskId];
+    const sourceStudent = assignments[sourceDeskId]; 
 
-    // Oppdater assignments
-    assignments[targetDeskId] = assignments[sourceDeskId]; // Flytt kilde til mål
+    // Hvis destinasjon er låst og vi prøver å bytte, stopp
+    // (Valgfritt: Du kan fjerne denne sjekken hvis du vil kunne tvinge bytte selv om låst)
+    // if(locks[targetDeskId]) return alert("Denne pulten er låst.");
+
+    assignments[targetDeskId] = sourceStudent;
     
-    if (studentInTarget) {
-        assignments[sourceDeskId] = studentInTarget; // Flytt mål til kilde (swap)
+    if (targetStudent) {
+        assignments[sourceDeskId] = targetStudent;
     } else {
-        delete assignments[sourceDeskId]; // Kilde blir tom
+        delete assignments[sourceDeskId];
     }
 
     renderDesks();
 }
 
 function toggleLock(deskId) {
-    if (locks[deskId]) {
-        delete locks[deskId];
-    } else {
-        locks[deskId] = true;
-    }
+    if (locks[deskId]) delete locks[deskId];
+    else locks[deskId] = true;
     renderDesks();
 }
 
-/* 5. GENERATOR ALGORITME */
+/* 6. GENERATOR ALGORITME */
 function generateSeating() {
-    // 1. Identifiser låste pulter og ledige elever
+    // Finn låste elever
     let lockedStudents = [];
     Object.keys(locks).forEach(deskId => {
-        if(assignments[deskId]) {
-            lockedStudents.push(assignments[deskId]);
-        }
+        if(assignments[deskId]) lockedStudents.push(assignments[deskId]);
     });
 
     let availableStudents = students.filter(s => !lockedStudents.includes(s));
-    
-    // 2. Identifiser ledige pulter
     let availableDesks = desks.filter(d => !locks[d.id]);
 
-    // Sorter pulter: De med lavest Y (top) er "Foran"
-    // Dette er viktig for "Må sitte foran" attributtet
+    // Sorter pulter etter Y-koordinat (Foran = lav Y)
     availableDesks.sort((a, b) => a.top - b.top);
 
-    // 3. Plasser "Må sitte foran" elever først
     let frontStudents = availableStudents.filter(s => studentAttributes[s]?.front);
     let otherStudents = availableStudents.filter(s => !studentAttributes[s]?.front);
 
-    // Tøm assignments for ikke-låste pulter
+    // Tøm assignments for ledige pulter
     availableDesks.forEach(d => delete assignments[d.id]);
 
-    // Funksjon for å prøve å fylle opp
-    // Vi kjører en enkel stokking og sjekk. 
-    // For bedre resultat kunne vi kjørt dette 100 ganger og valgt den med færrest regelbrudd.
-    
+    // Algoritme: Prøv mange ganger, velg den med færrest regelbrudd
     let bestAssignment = null;
     let minConflicts = Infinity;
+    
+    // Antall forsøk (høyere tall = smartere, men tregere)
+    const ATTEMPTS = 100; 
 
-    // Prøv 50 tilfeldige kombinasjoner for å finne den beste
-    for (let attempt = 0; attempt < 50; attempt++) {
-        let tempAssign = { ...assignments }; // Start med låste
-        let currentConflicts = 0;
-
-        // Stokke listene
+    for (let i = 0; i < ATTEMPTS; i++) {
+        let tempAssign = { ...assignments }; 
+        
         shuffleArray(frontStudents);
         shuffleArray(otherStudents);
 
         let pool = [...frontStudents, ...otherStudents];
-        let deskIndex = 0;
-
-        // Fyll pulter
-        for (let s of pool) {
-            if (deskIndex < availableDesks.length) {
-                tempAssign[availableDesks[deskIndex].id] = s;
-                deskIndex++;
-            }
+        
+        // Fyll pultene i sortert rekkefølge (foran først)
+        for (let j = 0; j < Math.min(pool.length, availableDesks.length); j++) {
+            tempAssign[availableDesks[j].id] = pool[j];
         }
 
-        // Tell konflikter (Uvenner sitter nær hverandre)
-        // Definisjon av "nær": Samme bordgruppe eller naboer.
-        // For enkelhets skyld: Distanse < X piksler.
-        currentConflicts = countConflicts(tempAssign);
-
-        if (currentConflicts < minConflicts) {
-            minConflicts = currentConflicts;
+        let conflicts = countConflicts(tempAssign);
+        if (conflicts < minConflicts) {
+            minConflicts = conflicts;
             bestAssignment = tempAssign;
         }
-
-        if (minConflicts === 0) break; // Perfekt!
+        if(minConflicts === 0) break; 
     }
 
-    assignments = bestAssignment;
+    if(bestAssignment) assignments = bestAssignment;
     renderDesks();
 }
 
-function countConflicts(currentAssignments) {
-    let conflictCount = 0;
-    
-    // Lag en mapping for rask oppslag: Navn -> PultObjekt
-    let studentToDesk = {};
-    Object.keys(currentAssignments).forEach(dId => {
-        const student = currentAssignments[dId];
-        const desk = desks.find(d => d.id === dId);
-        if(student && desk) studentToDesk[student] = desk;
-    });
+function countConflicts(currAssign) {
+    let count = 0;
+    // Map student -> desk
+    let sToD = {};
+    for (const [did, name] of Object.entries(currAssign)) {
+        sToD[name] = desks.find(d => d.id === did);
+    }
 
-    // Sjekk constraints
     constraints.forEach(c => {
-        const d1 = studentToDesk[c.p1];
-        const d2 = studentToDesk[c.p2];
-
+        const d1 = sToD[c.p1];
+        const d2 = sToD[c.p2];
         if (d1 && d2) {
-            // Beregn avstand (Pythagoras)
+            // Beregn avstand
             const dist = Math.sqrt(Math.pow(d1.left - d2.left, 2) + Math.pow(d1.top - d2.top, 2));
-            // Hvis nærmere enn ca 150px (naboer)
-            if (dist < 150) {
-                conflictCount++;
-            }
+            // Hvis nærmere enn ca 140px (naboer)
+            if (dist < 140) count++;
         }
     });
-
-    return conflictCount;
+    return count;
 }
 
-// Hjelpefunksjon: Fisher-Yates shuffle
-function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
+function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
+        [arr[i], arr[j]] = [arr[j], arr[i]];
     }
 }
 
