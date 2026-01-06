@@ -160,7 +160,57 @@ function layoutGrid(cols) {
     }
     renderDesks();
 }
+/* Ny funksjon for å legge til grupper av pulter */
+function addPreset(type) {
+    // Startposisjon for nye grupper (midt i rommet ca, med litt tilfeldig variasjon så de ikke legger seg oppå hverandre)
+    const startX = 200 + (Math.random() * 50);
+    const startY = 150 + (Math.random() * 50);
+    
+    // Dimensjoner (Må matche CSS: width 100px, height 60px + litt luft)
+    const w = 110; 
+    const h = 80; 
 
+    const offsets = [];
+
+    switch(type) {
+        case 'single':
+            offsets.push({x: 0, y: 0});
+            break;
+            
+        case 'pair':
+            offsets.push({x: 0, y: 0});
+            offsets.push({x: w, y: 0});
+            break;
+
+        case 'row4':
+            offsets.push({x: 0, y: 0}, {x: w, y: 0}, {x: w*2, y: 0}, {x: w*3, y: 0});
+            break;
+
+        case 'group4': // 2x2 boks
+            offsets.push({x: 0, y: 0}, {x: w, y: 0});
+            offsets.push({x: 0, y: h}, {x: w, y: h});
+            break;
+            
+        case 'group3': // En slags trekant/L-form
+            offsets.push({x: 0, y: 0}, {x: w, y: 0});
+            offsets.push({x: w/2, y: h}); // En midt under
+            break;
+
+        case 'horseshoe': // Liten hestesko på 5 pulter
+            // Venstre side
+            offsets.push({x: 0, y: h}, {x: 0, y: 0}); 
+            // Topp/Midt
+            offsets.push({x: w, y: 0});
+            // Høyre side
+            offsets.push({x: w*2, y: 0}, {x: w*2, y: h});
+            break;
+    }
+
+    // Generer pultene basert på offsets
+    offsets.forEach(offset => {
+        addDesk(startY + offset.y, startX + offset.x);
+    });
+}
 function toggleEditMode() {
     editMode = document.getElementById('editMode').checked;
     renderDesks(); // Re-render for å oppdatere cursor styles
