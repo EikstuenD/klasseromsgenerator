@@ -48,11 +48,16 @@
             </div>
         </div>
 
-        <!-- 3. MØBLERING -->
+        <!-- 3. MØBLERING (Oppdatert med slett-knapp) -->
         <div class="section">
             <h3>3. Møbelbank</h3>
-            <div class="room-controls">
-                <button onclick="clearDesks()" class="danger-btn"><i class="fas fa-trash"></i> Tøm rommet</button>
+            <div class="room-controls" style="display:flex; gap:5px; margin-bottom:10px;">
+                <button onclick="deleteSelectedDesks()" class="danger-btn" style="background:#e67e22; flex:1;">
+                    <i class="fas fa-eraser"></i> Slett valgte
+                </button>
+                <button onclick="clearDesks()" class="danger-btn" style="flex:1;">
+                    <i class="fas fa-trash"></i> Tøm alt
+                </button>
             </div>
             
             <p style="font-size:0.9rem; margin-bottom:5px;">Klikk for å sette inn:</p>
@@ -72,7 +77,7 @@
             <button class="generate-btn" onclick="generateSeating()">Plasser elever <i class="fas fa-random"></i></button>
             <p style="margin-top:10px; font-size:0.85rem; color:#555;">
                 <i class="fas fa-info-circle"></i> 
-                Tips: Dra en firkant rundt flere pulter for å flytte hele gruppen samtidig.
+                Tips: Du kan bruke <strong>Delete</strong>-tasten for å slette markerte pulter.
             </p>
         </div>
     </div>
@@ -82,14 +87,14 @@
         <div class="toolbar">
             <label class="toggle-label">
                 <input type="checkbox" id="editMode" onchange="toggleEditMode()"> 
-                <strong>Innredningsmodus</strong> (Flytt/Velg pulter)
+                <strong>Innredningsmodus</strong> (Flytt/Slett)
             </label>
             <button onclick="printClassroom()"><i class="fas fa-print"></i> Skriv ut</button>
         </div>
         
         <div id="classroom">
             <div class="board">TAVLE / LÆRER</div>
-            <!-- Markeringsboks (skjult til vanlig) -->
+            <!-- Markeringsboks -->
             <div id="selection-box"></div>
         </div>
     </div>
