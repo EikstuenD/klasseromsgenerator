@@ -8,7 +8,7 @@
     --desk-border: #999;
     --desk-width: 100px;
     --desk-height: 60px;
-    --selected-color: #2980b9; /* Ny farge for valgte elementer */
+    --selected-color: #2980b9; 
 }
 
 * { box-sizing: border-box; }
@@ -66,10 +66,9 @@ button {
     margin-top: 5px;
     transition: background 0.2s;
 }
-button:hover { background: #357abd; }
+button:hover { filter: brightness(90%); }
 
 .danger-btn { background: var(--danger-color); width: 100%; }
-.danger-btn:hover { background: #c0392b; }
 
 .generate-btn { width: 100%; font-size: 1.1rem; padding: 12px; background: #27ae60; font-weight: bold; }
 .generate-btn:hover { background: #219150; }
@@ -129,7 +128,7 @@ button:hover { background: #357abd; }
     background-image: radial-gradient(#ddd 2px, transparent 2px);
     background-size: 20px 20px;
     overflow: hidden;
-    user-select: none; /* Viktig for markering */
+    user-select: none; /* VIKTIG FOR MARKERING */
 }
 
 /* MARKERINGSBOKS */
@@ -139,7 +138,7 @@ button:hover { background: #357abd; }
     background-color: rgba(74, 144, 226, 0.2);
     display: none;
     z-index: 100;
-    pointer-events: none; /* Lar musa gå gjennom boksen */
+    pointer-events: none; 
 }
 
 .board {
@@ -159,11 +158,9 @@ button:hover { background: #357abd; }
     box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
 }
 
-/* Edit mode styling */
 .desk.moveable { cursor: grab; background: #f0f0f0; }
 .desk.moveable:active { cursor: grabbing; }
 
-/* Selected desk style */
 .desk.selected {
     border-color: var(--selected-color);
     background-color: #d6eaf8;
