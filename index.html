@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klasseromsgenerator</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Font Awesome for ikoner -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+
+<div class="app-container">
+    <!-- SIDEBAR: Kontrollpanel -->
+    <div class="sidebar">
+        <h1>Klasserom</h1>
+        
+        <div class="section">
+            <h3>1. Elever</h3>
+            <textarea id="studentInput" placeholder="Skriv inn navn (ett per linje)..."></textarea>
+            <button onclick="parseStudents()">Oppdater elevliste</button>
+            <div id="studentListCount">0 elever registrert</div>
+        </div>
+
+        <div class="section">
+            <h3>2. Regler & Hensyn</h3>
+            <div class="tabs">
+                <button class="tab-btn active" onclick="showTab('constraints')">Uvenner</button>
+                <button class="tab-btn" onclick="showTab('attributes')">Egenskaper</button>
+            </div>
+
+            <!-- Tab: Uvenner -->
+            <div id="tab-constraints" class="tab-content active">
+                <div class="constraint-input">
+                    <select id="conStudent1"></select>
+                    <span>skal ikke sitte med</span>
+                    <select id="conStudent2"></select>
+                    <button onclick="addConstraint()"><i class="fas fa-plus"></i></button>
+                </div>
+                <ul id="constraintList" class="small-list"></ul>
+            </div>
+
+            <!-- Tab: Egenskaper (Sitte foran) -->
+            <div id="tab-attributes" class="tab-content">
+                <p>Kryss av for elever som må sitte foran:</p>
+                <ul id="attributeList" class="small-list check-list"></ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>3. Innredning</h3>
+            <div class="room-controls">
+                <button onclick="addDesk()">Legg til pult</button>
+                <button onclick="clearDesks()" class="danger-btn">Fjern alle pulter</button>
+            </div>
+            <div class="layout-presets">
+                <small>Hurtigoppsett:</small>
+                <button onclick="layoutGrid(1)">En og en</button>
+                <button onclick="layoutGrid(2)">To og to</button>
+            </div>
+        </div>
+
+        <div class="section highlight-section">
+            <h3>4. Generer</h3>
+            <button class="generate-btn" onclick="generateSeating()">Plasser elever <i class="fas fa-random"></i></button>
+            <p><small>Tips: Du kan dra pulter for å flytte dem, og dra elever mellom pulter for å bytte plass.</small></p>
+        </div>
+    </div>
+
+    <!-- HOVEDOMRÅDE: Klasserommet -->
+    <div class="main-area">
+        <div class="toolbar">
+            <label><input type="checkbox" id="editMode" onchange="toggleEditMode()"> Innredningsmodus (Flytt pulter)</label>
+            <button onclick="printClassroom()"><i class="fas fa-print"></i> Skriv ut</button>
+        </div>
+        
+        <div id="classroom">
+            <div class="board">TAVLE / LÆRER</div>
+            <!-- Pulter legges til her via JS -->
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
