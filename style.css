@@ -6,6 +6,8 @@
     --danger-color: #e74c3c;
     --desk-color: #e0e0e0;
     --desk-border: #999;
+    --desk-width: 100px;
+    --desk-height: 60px;
 }
 
 * { box-sizing: border-box; }
@@ -25,7 +27,7 @@ body {
 
 /* SIDEBAR STYLES */
 .sidebar {
-    width: 320px;
+    width: 340px;
     background: var(--sidebar-bg);
     padding: 20px;
     border-right: 1px solid #ccc;
@@ -34,20 +36,23 @@ body {
     flex-direction: column;
     gap: 20px;
     box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+    z-index: 10;
 }
 
 h1 { margin-top: 0; font-size: 1.5rem; color: #333; }
 h3 { margin-bottom: 10px; font-size: 1rem; color: #555; border-bottom: 2px solid var(--primary-color); display: inline-block; }
 
-.section { margin-bottom: 10px; }
+.section { margin-bottom: 10px; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px; }
+.section:last-child { border-bottom: none; }
 
 textarea {
     width: 100%;
-    height: 100px;
+    height: 80px;
     padding: 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
     resize: vertical;
+    font-family: inherit;
 }
 
 button {
@@ -62,21 +67,24 @@ button {
 }
 
 button:hover { background: #357abd; }
-.danger-btn { background: var(--danger-color); }
-.generate-btn { width: 100%; font-size: 1.1rem; padding: 12px; background: #27ae60; }
+.danger-btn { background: var(--danger-color); width: 100%; }
+.danger-btn:hover { background: #c0392b; }
+
+.generate-btn { width: 100%; font-size: 1.1rem; padding: 12px; background: #27ae60; font-weight: bold; }
 .generate-btn:hover { background: #219150; }
 
 .small-list {
     list-style: none;
     padding: 0;
     margin-top: 10px;
-    max-height: 150px;
+    max-height: 120px;
     overflow-y: auto;
     border: 1px solid #eee;
+    background: #fafafa;
 }
 
 .small-list li {
-    padding: 5px;
+    padding: 6px;
     border-bottom: 1px solid #eee;
     display: flex;
     justify-content: space-between;
@@ -90,6 +98,32 @@ button:hover { background: #357abd; }
     gap: 5px;
 }
 .constraint-input select { padding: 5px; }
+
+/* TABS */
+.tabs { display: flex; gap: 5px; margin-bottom: 5px; }
+.tab-btn { flex: 1; font-size: 0.8rem; background: #ddd; color: #333; margin-top:0; }
+.tab-btn.active { background: var(--primary-color); color: white; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* MØBELBANK (Grid layout) */
+.furniture-bank {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.furniture-bank button {
+    margin-top: 0;
+    background: #f8f9fa;
+    color: #333;
+    border: 1px solid #ccc;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.furniture-bank button:hover { background: #e2e6ea; }
 
 /* MAIN AREA */
 .main-area {
@@ -106,19 +140,32 @@ button:hover { background: #357abd; }
     display: flex;
     justify-content: space-between;
     align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    z-index: 5;
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    background: #fff8e1;
+    padding: 5px 10px;
+    border: 1px solid #f1c40f;
+    border-radius: 4px;
 }
 
 #classroom {
     flex-grow: 1;
     position: relative;
     background-color: #fff;
-    background-image: radial-gradient(#ddd 1px, transparent 1px);
-    background-size: 20px 20px; /* Grid dots */
+    background-image: radial-gradient(#ddd 2px, transparent 2px);
+    background-size: 20px 20px; /* Grid prikker */
     overflow: hidden;
 }
 
 .board {
-    width: 60%;
+    width: 50%;
     height: 40px;
     background: #333;
     color: white;
@@ -129,12 +176,13 @@ button:hover { background: #357abd; }
     border-radius: 4px;
     font-weight: bold;
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    border: 4px solid #555;
 }
 
 /* DESK STYLES */
 .desk {
-    width: 100px;
-    height: 60px;
+    width: var(--desk-width);
+    height: var(--desk-height);
     background: var(--desk-color);
     border: 2px solid var(--desk-border);
     position: absolute;
@@ -147,32 +195,47 @@ button:hover { background: #357abd; }
     transition: transform 0.1s, box-shadow 0.1s;
 }
 
-/* Innredningsmodus styling */
+/* Edit mode styling */
 .desk.moveable {
     cursor: grab;
-    border-style: dashed;
+    border: 2px dashed #666;
+    background: #f0f0f0;
 }
 .desk.moveable:active { cursor: grabbing; }
+.desk.moveable:hover { border-color: #333; }
 
 /* Student navn inni pult */
 .student-card {
-    width: 90%;
-    height: 80%;
+    width: 92%;
+    height: 85%;
     background: white;
     border-radius: 4px;
     display: flex;
     justify-content: center;
     align-items: center;
     text-align: center;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
+    font-weight: 500;
     cursor: grab;
     border: 1px solid #ddd;
+    overflow: hidden;
+    word-wrap: break-word;
+    position: relative;
 }
+.student-card:active { cursor: grabbing; }
+
+/* Låst student */
 .student-card.locked {
     border: 2px solid #f39c12;
     background: #fffdf5;
 }
-.student-card:active { cursor: grabbing; }
+.lock-icon {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 10px;
+    color: #f39c12;
+}
 
 /* Drag and Drop visual feedback */
 .desk.drag-over {
@@ -181,40 +244,12 @@ button:hover { background: #357abd; }
     transform: scale(1.05);
 }
 
-/* TABS */
-.tabs { display: flex; gap: 5px; margin-bottom: 5px; }
-.tab-btn { flex: 1; font-size: 0.8rem; background: #ddd; color: #333; }
-.tab-btn.active { background: var(--primary-color); color: white; }
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
-/* Print styling */
+/* PRINT */
 @media print {
-    .sidebar, .toolbar { display: none; }
+    .sidebar, .toolbar { display: none !important; }
     .app-container { height: auto; display: block; }
-    #classroom { border: 1px solid #000; height: 1000px; } /* Force height for print */
-    .desk { border: 2px solid #000; box-shadow: none; }
-}
-/* Ny styling for møbelbanken */
-.furniture-bank {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-top: 10px;
-}
-
-.furniture-bank button {
-    font-size: 0.85rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    background-color: #f0f0f0;
-    color: #333;
-    border: 1px solid #ccc;
-    margin-top: 0; /* Override default button margin */
-}
-
-.furniture-bank button:hover {
-    background-color: #e0e0e0;
+    #classroom { border: none; height: 100vh; background: white; }
+    .desk { border: 2px solid #000; box-shadow: none; background: #fff; }
+    .student-card { border: 1px solid #000; font-size: 12pt; }
+    .board { background: #999; color: black; border: 2px solid black; }
 }
