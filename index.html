@@ -49,14 +49,20 @@
 
         <div class="section">
             <h3>3. Innredning</h3>
+            <div class="section">
+            <h3>3. Møbelbank / Innredning</h3>
             <div class="room-controls">
-                <button onclick="addDesk()">Legg til pult</button>
-                <button onclick="clearDesks()" class="danger-btn">Fjern alle pulter</button>
+                <button onclick="clearDesks()" class="danger-btn"><i class="fas fa-trash"></i> Tøm rommet</button>
             </div>
-            <div class="layout-presets">
-                <small>Hurtigoppsett:</small>
-                <button onclick="layoutGrid(1)">En og en</button>
-                <button onclick="layoutGrid(2)">To og to</button>
+            
+            <p><small>Klikk for å legge til:</small></p>
+            <div class="furniture-bank">
+                <button onclick="addPreset('single')" title="Enkel pult"><i class="fas fa-square"></i> Enkel</button>
+                <button onclick="addPreset('pair')" title="To og to"><i class="fas fa-user-friends"></i> Par</button>
+                <button onclick="addPreset('row4')" title="Rekke på 4"><i class="fas fa-ellipsis-h"></i> Rekke (4)</button>
+                <button onclick="addPreset('group4')" title="Gruppe på 4"><i class="fas fa-th-large"></i> Gruppe (4)</button>
+                <button onclick="addPreset('group3')" title="Gruppe på 3"><i class="fas fa-users"></i> Gruppe (3)</button>
+                <button onclick="addPreset('horseshoe')" title="Hestesko (5)"><i class="fas fa-magnet"></i> Hestesko</button>
             </div>
         </div>
 
