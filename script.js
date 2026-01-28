@@ -1,236 +1,337 @@
-/* STATE MANAGEMENT */
+/* --- STATE & DATA MODEL --- */
+let appData = {
+    classes: {}, // Lagrer data for hver klasse: { "8A": { students: [], desks: [], ... } }
+    currentClassId: null
+};
+
+// Variabler for gjeldende aktive klasse (speiler innholdet i appData.classes[currentClassId])
 let students = [];
-let constraints = [];
-let studentAttributes = {}; 
-let desks = []; 
-let assignments = {}; 
-let locks = {}; 
-
-let editMode = false;
+let constraints = []; // {p1, p2}
+let studentAttributes = {}; // {Navn: {front: true}}
+let desks = []; // {id, type, top, left}
+let assignments = {}; // {deskId: studentName}
+let locks = {}; // {deskId: true}
 let deskCounter = 0;
-let selectedDeskIds = new Set(); 
 
-let isDraggingDesks = false;
-let isSelecting = false;
-let dragStartMouse = { x: 0, y: 0 };
-let dragStartDeskPositions = {}; 
-let selectionBoxStart = { x: 0, y: 0 };
+// Historikk for Angre/Gjør om
+let historyStack = [];
+let redoStack = [];
+
+// UI tilstand
+let editMode = false;
+let selectedIds = new Set(); 
 let draggedStudent = null;
 
-/* --- LAGRING OG LASTING AV DATA (LOCAL STORAGE) --- */
+// Zoom & Pan
+let viewScale = 1;
+let panX = 0;
+let panY = 0;
+let isPanning = false;
+let panStart = {x:0, y:0};
 
-function saveState() {
-    const state = {
-        students,
-        constraints,
-        studentAttributes,
-        desks,
-        assignments,
-        locks,
-        deskCounter
-    };
-    localStorage.setItem('seatingAppData', JSON.stringify(state));
+// Dragging av objekter
+let isDraggingItems = false;
+let isSelecting = false;
+let dragStartMouse = {x:0, y:0};
+let itemStartPos = {}; // {id: {top, left}}
+let selectionBoxStart = {x:0, y:0};
+
+/* --- INITIALISERING --- */
+document.addEventListener('DOMContentLoaded', () => {
+    loadGlobalData();
+
+    // Setup Canvas posisjon (Sentrer visning)
+    centerView();
+
+    // Event Listeners
+    setupInputListeners();
+    
+    // Scrolle/Panorere logikk
+    const container = document.getElementById('classroom-container');
+    container.addEventListener('mousedown', handleContainerMouseDown);
+    container.addEventListener('wheel', handleWheelZoom, {passive: false}); // Zoom med hjul
+    
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+});
+
+/* --- DATA MANAGEMENT (FLERE KLASSER) --- */
+function loadGlobalData() {
+    const raw = localStorage.getItem('seatingAppPro');
+    if(raw) {
+        appData = JSON.parse(raw);
+    } else {
+        // Opprett standard klasse hvis ingen finnes
+        createClass("Min Klasse", true);
+    }
+    
+    // Fyll dropdown
+    updateClassSelector();
+    
+    // Last inn valgt klasse
+    if(appData.currentClassId && appData.classes[appData.currentClassId]) {
+        loadClass(appData.currentClassId);
+    } else {
+        // Fallback til første klasse
+        const firstId = Object.keys(appData.classes)[0];
+        if(firstId) loadClass(firstId);
+    }
 }
 
-function loadState() {
-    const raw = localStorage.getItem('seatingAppData');
-    if (raw) {
-        const data = JSON.parse(raw);
-        students = data.students || [];
-        constraints = data.constraints || [];
-        studentAttributes = data.studentAttributes || {};
-        desks = data.desks || [];
-        assignments = data.assignments || {};
-        locks = data.locks || {};
-        deskCounter = data.deskCounter || 0;
-        
-        // Fyll inn tekstboksen med lagrede navn
-        document.getElementById('studentInput').value = students.join('\n');
-        return true; // Fant data
+function saveGlobalData() {
+    // Lagre nåværende state tilbake til appData-objektet
+    if(appData.currentClassId) {
+        appData.classes[appData.currentClassId] = {
+            students, constraints, studentAttributes, desks, assignments, locks, deskCounter
+        };
     }
-    return false; // Fant ingen data
+    localStorage.setItem('seatingAppPro', JSON.stringify(appData));
+}
+
+function loadClass(classId) {
+    appData.currentClassId = classId;
+    const data = appData.classes[classId];
+    
+    // Kopier data til arbeidsvariabler
+    students = data.students || [];
+    constraints = data.constraints || [];
+    studentAttributes = data.studentAttributes || {};
+    desks = data.desks || [];
+    assignments = data.assignments || {};
+    locks = data.locks || {};
+    deskCounter = data.deskCounter || 0;
+
+    // Oppdater UI
+    document.getElementById('studentInput').value = students.join('\n');
+    document.getElementById('studentListCount').innerText = `${students.length} elever`;
+    document.getElementById('classSelector').value = classId;
+    
+    // Nullstill historikk når vi bytter klasse
+    historyStack = [];
+    redoStack = [];
+    
+    updateSelectBoxes();
+    updateAttributeList();
+    renderConstraints();
+    renderDesks();
+}
+
+function createClass(name, isInit = false) {
+    const id = name || prompt("Navn på ny klasse:");
+    if(!id) return;
+    if(appData.classes[id]) {
+        alert("En klasse med dette navnet finnes allerede.");
+        return;
+    }
+
+    // Init data
+    appData.classes[id] = {
+        students: isInit ? ["Ola", "Kari", "Per", "Pål"] : [],
+        constraints: [], studentAttributes: {}, desks: [], assignments: {}, locks: {}, deskCounter: 0
+    };
+    
+    appData.currentClassId = id;
+    saveGlobalData();
+    updateClassSelector();
+    loadClass(id);
+    
+    if(isInit) {
+        addItem('group4'); // Legg til litt møbler for demo
+        saveState();
+    }
+}
+
+function deleteClass() {
+    const id = appData.currentClassId;
+    if(!confirm(`Er du sikker på at du vil slette "${id}"?`)) return;
+    
+    delete appData.classes[id];
+    
+    // Finn en ny ID å bytte til
+    const remaining = Object.keys(appData.classes);
+    if(remaining.length > 0) {
+        appData.currentClassId = remaining[0];
+        saveGlobalData();
+        updateClassSelector();
+        loadClass(remaining[0]);
+    } else {
+        createClass("Min Klasse", true); // Reset to blank
+    }
+}
+
+function updateClassSelector() {
+    const sel = document.getElementById('classSelector');
+    sel.innerHTML = '';
+    Object.keys(appData.classes).forEach(id => {
+        sel.add(new Option(id, id));
+    });
+    sel.value = appData.currentClassId;
+}
+
+function changeClass() {
+    const newId = document.getElementById('classSelector').value;
+    loadClass(newId);
 }
 
 function resetAllData() {
-    if(confirm("Dette vil slette alt lagret innhold og starte på nytt. Er du sikker?")) {
-        localStorage.removeItem('seatingAppData');
-        location.reload(); // Last siden på nytt
+    if(confirm("Slette ALT data? Dette kan ikke angres.")) {
+        localStorage.removeItem('seatingAppPro');
+        location.reload();
     }
 }
 
-/* INITIALISERING */
-document.addEventListener('DOMContentLoaded', () => {
-    // Prøv å laste lagret data
-    const hasData = loadState();
-
-    if (!hasData) {
-        // Hvis ingen data finnes, last demo
-        document.getElementById('studentInput').value = "Ola\nKari\nPer\nPål\nEspen\nAskeladd\nSofie\nNora\nJakob\nEmma\nLinus\nSara";
-        parseStudents(); // Dette vil også lagre første gang
-        addPreset('group4'); 
-        desks.forEach(d => { d.top += 50; d.left += 100; });
-    } else {
-        // Hvis data fantes, oppdater GUI
-        document.getElementById('studentListCount').innerText = `${students.length} elever registrert`;
-        updateSelectBoxes();
-        updateAttributeList();
-        renderConstraints();
-    }
-    
-    // Uansett, tegn opp det vi har
-    renderDesks();
-
-    // Event listeners
-    const room = document.getElementById('classroom');
-    if(room) room.addEventListener('mousedown', handleRoomMouseDown);
-    window.addEventListener('mousemove', handleGlobalMouseMove);
-    window.addEventListener('mouseup', handleGlobalMouseUp);
-    
-    document.addEventListener('keydown', (e) => {
-        if (!editMode) return; 
-        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-            if (selectedDeskIds.size > 0) {
-                e.preventDefault(); 
-                deleteSelectedDesks();
-            }
-        }
+/* --- HISTORIKK (UNDO/REDO) --- */
+function saveState() {
+    // Lagre snapshot for Undo
+    const snapshot = JSON.stringify({
+        students, constraints, studentAttributes, desks, assignments, locks, deskCounter
     });
-});
+    
+    // Ikke lagre hvis ingen endring (enkel sjekk)
+    if(historyStack.length > 0 && historyStack[historyStack.length-1] === snapshot) return;
 
-/* GUI & LOGIKK */
-
-function toggleView() {
-    const room = document.getElementById('classroom');
-    room.classList.toggle('teacher-mode');
+    historyStack.push(snapshot);
+    if(historyStack.length > 50) historyStack.shift(); // Max 50 steg
+    redoStack = []; // Tøm redo når vi gjør noe nytt
+    
+    saveGlobalData(); // Lagre til disk også
 }
 
-function deleteSelectedDesks() {
-    if (selectedDeskIds.size === 0) {
-        alert("Ingen pulter er markert. Klikk på en pult først.");
-        return;
-    }
-    selectedDeskIds.forEach(id => {
-        delete assignments[id];
-        delete locks[id];
+function undo() {
+    if(historyStack.length === 0) return;
+    
+    // Lagre nåværende tilstand til Redo
+    const currentSnapshot = JSON.stringify({
+        students, constraints, studentAttributes, desks, assignments, locks, deskCounter
     });
-    desks = desks.filter(desk => !selectedDeskIds.has(desk.id));
-    selectedDeskIds.clear();
-    renderDesks();
+    redoStack.push(currentSnapshot);
+    
+    // Hent forrige
+    const prev = JSON.parse(historyStack.pop());
+    applySnapshot(prev);
+    saveGlobalData();
 }
 
-function parseStudents() {
-    const raw = document.getElementById('studentInput').value;
-    students = raw.split('\n').map(s => s.trim()).filter(s => s !== "");
-    document.getElementById('studentListCount').innerText = `${students.length} elever registrert`;
+function redo() {
+    if(redoStack.length === 0) return;
+    
+    const next = JSON.parse(redoStack.pop());
+    
+    // Dytt nåværende til Undo
+    const currentSnapshot = JSON.stringify({
+        students, constraints, studentAttributes, desks, assignments, locks, deskCounter
+    });
+    historyStack.push(currentSnapshot);
+    
+    applySnapshot(next);
+    saveGlobalData();
+}
+
+function applySnapshot(data) {
+    students = data.students;
+    constraints = data.constraints;
+    studentAttributes = data.studentAttributes;
+    desks = data.desks;
+    assignments = data.assignments;
+    locks = data.locks;
+    deskCounter = data.deskCounter;
+    
+    document.getElementById('studentInput').value = students.join('\n');
+    document.getElementById('studentListCount').innerText = `${students.length} elever`;
+    
     updateSelectBoxes();
     updateAttributeList();
-    saveState(); // Lagre
+    renderConstraints();
+    renderDesks();
 }
 
-function updateSelectBoxes() {
-    const s1 = document.getElementById('conStudent1');
-    const s2 = document.getElementById('conStudent2');
-    if(!s1 || !s2) return;
-    s1.innerHTML = ''; s2.innerHTML = '';
-    students.sort().forEach(name => {
-        s1.add(new Option(name, name));
-        s2.add(new Option(name, name));
-    });
+/* --- ZOOM & PANORERING --- */
+function adjustZoom(delta) {
+    viewScale += delta;
+    if(viewScale < 0.2) viewScale = 0.2;
+    if(viewScale > 3.0) viewScale = 3.0;
+    updateViewTransform();
+    document.getElementById('zoomLevel').innerText = Math.round(viewScale * 100) + '%';
 }
 
-function updateAttributeList() {
-    const list = document.getElementById('attributeList');
-    if(!list) return;
-    list.innerHTML = '';
-    students.sort().forEach(name => {
-        const isFront = studentAttributes[name]?.front || false;
-        const li = document.createElement('li');
-        li.innerHTML = `${name} <label style="cursor:pointer"><input type="checkbox" ${isFront ? 'checked' : ''} onchange="toggleAttribute('${name}', 'front')"></label>`;
-        list.appendChild(li);
-    });
+function resetZoom() {
+    viewScale = 1;
+    centerView(); // Reset pan også
+    document.getElementById('zoomLevel').innerText = '100%';
 }
 
-function toggleAttribute(name, attr) {
-    if (!studentAttributes[name]) studentAttributes[name] = {};
-    studentAttributes[name][attr] = !studentAttributes[name][attr];
-    saveState(); // Lagre
+function centerView() {
+    // Sentrer det store 2000x2000 canvaset i viewporten
+    const container = document.getElementById('classroom-container');
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    panX = (cw - 2000) / 2;
+    panY = (ch - 2000) / 2;
+    updateViewTransform();
 }
 
-function showTab(tabName) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-    document.getElementById('tab-' + tabName).classList.add('active');
-    const btns = document.querySelectorAll('.tab-btn');
-    if(btns.length > 1) {
-        if(tabName === 'constraints') btns[0].classList.add('active');
-        else btns[1].classList.add('active');
+function updateViewTransform() {
+    const room = document.getElementById('classroom');
+    // Vi bruker translate og scale
+    room.style.transform = `translate(${panX}px, ${panY}px) scale(${viewScale})`;
+}
+
+function handleWheelZoom(e) {
+    if(e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        adjustZoom(delta);
     }
 }
 
-function addConstraint() {
-    const s1 = document.getElementById('conStudent1').value;
-    const s2 = document.getElementById('conStudent2').value;
-    if (s1 && s2 && s1 !== s2) {
-        const exists = constraints.some(c => (c.p1 === s1 && c.p2 === s2) || (c.p1 === s2 && c.p2 === s1));
-        if (!exists) { 
-            constraints.push({ p1: s1, p2: s2 }); 
-            renderConstraints(); 
-            saveState(); // Lagre
+/* --- GUI HANDLERS --- */
+function addItem(type) {
+    saveState(); // Før endring
+    
+    // Sentrer innsetting i synlig område
+    const container = document.getElementById('classroom-container');
+    // Enkel matte for å finne senter av viewet relativt til canvas
+    const centerX = (-panX + container.clientWidth/2) / viewScale;
+    const centerY = (-panY + container.clientHeight/2) / viewScale;
+    
+    const startX = centerX - 50; 
+    const startY = centerY - 50;
+
+    const w = 110; const h = 80;
+    let offsets = [];
+    let isFurniture = false;
+
+    // Fysiske elementer
+    if(type === 'door' || type === 'window' || type === 'obstacle') {
+        isFurniture = true;
+        offsets.push({x:0, y:0, type: type});
+    } else {
+        // Pulter
+        switch(type) {
+            case 'single': offsets.push({x:0, y:0}); break;
+            case 'pair': offsets.push({x:0, y:0}, {x:w, y:0}); break;
+            case 'row4': offsets.push({x:0, y:0}, {x:w, y:0}, {x:w*2, y:0}, {x:w*3, y:0}); break;
+            case 'group4': offsets.push({x:0, y:0}, {x:w, y:0}, {x:0, y:h}, {x:w, y:h}); break;
+            case 'group3': offsets.push({x:0, y:0}, {x:w, y:0}, {x:w/2, y:h}); break;
+            case 'horseshoe': offsets.push({x:0, y:h}, {x:0, y:0}, {x:w, y:0}, {x:w*2, y:0}, {x:w*2, y:h}); break;
         }
     }
-}
 
-function renderConstraints() {
-    const list = document.getElementById('constraintList');
-    list.innerHTML = '';
-    constraints.forEach((c, index) => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span>${c.p1} <i class="fas fa-ban" style="color:red; margin:0 5px;"></i> ${c.p2}</span><i class="fas fa-trash" style="cursor:pointer; color:#999;" onclick="removeConstraint(${index})"></i>`;
-        list.appendChild(li);
+    selectedIds.clear();
+    offsets.forEach(off => {
+        deskCounter++;
+        const id = `item-${deskCounter}`;
+        desks.push({
+            id: id,
+            type: off.type || 'desk', // Default to desk
+            top: startY + off.y,
+            left: startX + off.x
+        });
+        selectedIds.add(id);
     });
-}
-function removeConstraint(index) { 
-    constraints.splice(index, 1); 
-    renderConstraints(); 
-    saveState(); // Lagre
-}
 
-function addDesk(top = 100, left = 100) {
-    deskCounter++;
-    const deskId = `desk-${deskCounter}`;
-    desks.push({ id: deskId, top: top, left: left });
-    return deskId;
-}
-
-function clearDesks() {
-    if(confirm("Er du sikker på at du vil fjerne alle pulter?")) {
-        desks = []; assignments = {}; locks = {}; selectedDeskIds.clear();
-        renderDesks();
-    }
-}
-
-function addPreset(type) {
-    const startX = 250 + (Math.random() * 50);
-    const startY = 150 + (Math.random() * 50);
-    const w = 110; const h = 80; 
-    const offsets = [];
-
-    switch(type) {
-        case 'single': offsets.push({x: 0, y: 0}); break;
-        case 'pair': offsets.push({x: 0, y: 0}, {x: w, y: 0}); break;
-        case 'row4': offsets.push({x: 0, y: 0}, {x: w, y: 0}, {x: w*2, y: 0}, {x: w*3, y: 0}); break;
-        case 'group4': offsets.push({x: 0, y: 0}, {x: w, y: 0}, {x: 0, y: h}, {x: w, y: h}); break;
-        case 'group3': offsets.push({x: 0, y: 0}, {x: w, y: 0}, {x: w/2, y: h}); break;
-        case 'horseshoe': offsets.push({x: 0, y: h}, {x: 0, y: 0}, {x: w, y: 0}, {x: w*2, y: 0}, {x: w*2, y: h}); break;
-    }
-
-    selectedDeskIds.clear(); 
-    offsets.forEach(offset => {
-        const newId = addDesk(startY + offset.y, startX + offset.x);
-        selectedDeskIds.add(newId); 
-    });
-    
     if(!editMode) {
         document.getElementById('editMode').checked = true;
         toggleEditMode();
@@ -239,235 +340,447 @@ function addPreset(type) {
     }
 }
 
-function toggleEditMode() {
-    editMode = document.getElementById('editMode').checked;
-    selectedDeskIds.clear(); 
-    renderDesks(); 
-}
-
-function renderDesks() {
-    const room = document.getElementById('classroom');
-    const board = room.querySelector('.board');
-    const selBox = document.getElementById('selection-box');
+function deleteSelected() {
+    if(selectedIds.size === 0) return alert("Marker noe først.");
+    saveState();
     
-    room.innerHTML = '';
-    room.appendChild(board);
-    if(selBox) room.appendChild(selBox); 
-
-    desks.forEach(desk => {
-        const deskEl = document.createElement('div');
-        const isSelected = selectedDeskIds.has(desk.id);
-        
-        deskEl.className = `desk ${editMode ? 'moveable' : ''} ${isSelected ? 'selected' : ''}`;
-        deskEl.id = desk.id;
-        deskEl.style.top = desk.top + 'px';
-        deskEl.style.left = desk.left + 'px';
-
-        if(editMode) {
-            deskEl.draggable = false; 
-            deskEl.addEventListener('mousedown', (e) => handleDeskMouseDown(e, desk.id));
-        } else {
-            deskEl.addEventListener('dragover', handleDragOver);
-            deskEl.addEventListener('drop', handleDropStudent);
-        }
-
-        if (assignments[desk.id]) {
-            const studentName = assignments[desk.id];
-            const isLocked = locks[desk.id];
-            const card = document.createElement('div');
-            card.className = `student-card ${isLocked ? 'locked' : ''}`;
-            
-            card.draggable = !editMode;
-            
-            card.innerText = studentName;
-            card.dataset.deskId = desk.id; 
-            if(isLocked) card.innerHTML += ' <i class="fas fa-lock lock-icon"></i>';
-            card.addEventListener('dblclick', (e) => { e.stopPropagation(); toggleLock(desk.id); });
-            if(!editMode) card.addEventListener('dragstart', handleDragStartStudent);
-            if(editMode) card.style.pointerEvents = "none";
-            
-            deskEl.appendChild(card);
-        }
-        room.appendChild(deskEl);
+    selectedIds.forEach(id => {
+        delete assignments[id];
+        delete locks[id];
     });
-    
-    saveState(); // VIKTIG: Lagre hver gang vi tegner opp
+    desks = desks.filter(d => !selectedIds.has(d.id));
+    selectedIds.clear();
+    renderDesks();
 }
 
-function handleDeskMouseDown(e, deskId) {
-    if (!editMode) return;
-    e.preventDefault(); e.stopPropagation();
+function clearRoom() {
+    if(confirm("Tømme hele rommet?")) {
+        saveState();
+        desks = []; assignments = {}; locks = {}; selectedIds.clear();
+        renderDesks();
+    }
+}
 
-    if (e.shiftKey) {
-        if (selectedDeskIds.has(deskId)) selectedDeskIds.delete(deskId);
-        else selectedDeskIds.add(deskId);
-        renderDesks(); 
+/* --- MOUSE & KEYBOARD EVENT HANDLERS --- */
+let isSpacePressed = false;
+
+function handleKeyDown(e) {
+    if(e.code === 'Space' && !isSpacePressed) {
+        if(e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') {
+            e.preventDefault(); // Hindre scroll
+            isSpacePressed = true;
+            document.getElementById('classroom-container').classList.add('panning');
+        }
+    }
+    
+    // Slett knapp
+    if((e.key === 'Delete' || e.key === 'Backspace') && editMode) {
+        if(e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') {
+            if(selectedIds.size > 0) {
+                e.preventDefault();
+                deleteSelected();
+            }
+        }
+    }
+
+    // Undo/Redo
+    if((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+    }
+    if((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        redo();
+    }
+}
+
+function handleKeyUp(e) {
+    if(e.code === 'Space') {
+        isSpacePressed = false;
+        isPanning = false;
+        document.getElementById('classroom-container').classList.remove('panning');
+    }
+}
+
+function handleContainerMouseDown(e) {
+    // Sjekk om vi skal Panorere (Space holdt inne)
+    if(isSpacePressed) {
+        isPanning = true;
+        panStart = {x: e.clientX, y: e.clientY};
+        return;
+    }
+    
+    // Sjekk markering i rommet
+    if(editMode && e.target.id === 'classroom-container' || e.target.id === 'classroom') {
+        if(!e.shiftKey) {
+            selectedIds.clear();
+            renderDesks();
+        }
+        isSelecting = true;
+        // Må korrigere for viewScale og Pan når vi beregner startposisjon i Canvas-koordinater
+        const rect = document.getElementById('classroom').getBoundingClientRect();
+        selectionBoxStart = {
+            x: (e.clientX - rect.left) / viewScale,
+            y: (e.clientY - rect.top) / viewScale
+        };
+        
+        const box = document.getElementById('selection-box');
+        box.style.display = 'block';
+        box.style.left = selectionBoxStart.x + 'px';
+        box.style.top = selectionBoxStart.y + 'px';
+        box.style.width = '0'; box.style.height = '0';
+    }
+}
+
+function handleItemMouseDown(e, id) {
+    if(!editMode) return;
+    e.stopPropagation(); // Ikke trigger container click
+    e.preventDefault(); // Ikke select text
+
+    if(isSpacePressed) return; // Ikke flytt hvis vi panorerer
+
+    if(e.shiftKey) {
+        if(selectedIds.has(id)) selectedIds.delete(id);
+        else selectedIds.add(id);
+        renderDesks();
     } else {
-        if (!selectedDeskIds.has(deskId)) {
-            selectedDeskIds.clear();
-            selectedDeskIds.add(deskId);
+        if(!selectedIds.has(id)) {
+            selectedIds.clear();
+            selectedIds.add(id);
             renderDesks();
         }
     }
 
-    isDraggingDesks = true;
-    dragStartMouse = { x: e.clientX, y: e.clientY };
-    dragStartDeskPositions = {};
-    selectedDeskIds.forEach(id => {
-        const d = desks.find(desk => desk.id === id);
-        if(d) dragStartDeskPositions[id] = { top: d.top, left: d.left };
+    // Start Dragging
+    isDraggingItems = true;
+    dragStartMouse = {x: e.clientX, y: e.clientY};
+    itemStartPos = {};
+    selectedIds.forEach(itemId => {
+        const d = desks.find(x => x.id === itemId);
+        if(d) itemStartPos[itemId] = {top: d.top, left: d.left};
     });
-}
-
-function handleRoomMouseDown(e) {
-    if (!editMode) return;
-    if(e.target.id !== 'classroom') return;
-
-    e.preventDefault();
-    if (!e.shiftKey) {
-        selectedDeskIds.clear();
-        renderDesks();
-    }
     
-    isSelecting = true;
-    const roomRect = document.getElementById('classroom').getBoundingClientRect();
-    selectionBoxStart = { x: e.clientX - roomRect.left, y: e.clientY - roomRect.top };
-    
-    const boxEl = document.getElementById('selection-box');
-    if(boxEl) {
-        boxEl.style.left = selectionBoxStart.x + 'px';
-        boxEl.style.top = selectionBoxStart.y + 'px';
-        boxEl.style.width = '0px'; boxEl.style.height = '0px';
-        boxEl.style.display = 'block';
-    }
+    // Lagre state før vi flytter, i tilfelle vi slipper
+    // (Optimalisering: Vi lagrer egentlig først ved mouseUp for å unngå 100 lagringer mens man drar)
 }
 
 function handleGlobalMouseMove(e) {
-    if (!editMode) return;
-
-    if (isDraggingDesks) {
-        e.preventDefault(); 
-        const dx = e.clientX - dragStartMouse.x;
-        const dy = e.clientY - dragStartMouse.y;
-
-        selectedDeskIds.forEach(id => {
-            const deskData = desks.find(d => d.id === id);
-            const startPos = dragStartDeskPositions[id];
-            if (deskData && startPos) {
-                let newLeft = startPos.left + dx;
-                let newTop = startPos.top + dy;
-                newLeft = Math.round(newLeft / 10) * 10;
-                newTop = Math.round(newTop / 10) * 10;
-                deskData.left = newLeft; deskData.top = newTop;
-                const el = document.getElementById(id);
-                if(el) { el.style.left = newLeft + 'px'; el.style.top = newTop + 'px'; }
-            }
-        });
+    // 1. Panorering
+    if(isPanning) {
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+        panX += dx;
+        panY += dy;
+        panStart = {x: e.clientX, y: e.clientY};
+        updateViewTransform();
+        return;
     }
 
-    if (isSelecting) {
+    // 2. Flytte Objekter
+    if(isDraggingItems && editMode) {
         e.preventDefault();
-        const roomRect = document.getElementById('classroom').getBoundingClientRect();
-        const currentX = e.clientX - roomRect.left;
-        const currentY = e.clientY - roomRect.top;
+        // VIKTIG: Delta må deles på scale for at musa skal følge objektet
+        const dx = (e.clientX - dragStartMouse.x) / viewScale;
+        const dy = (e.clientY - dragStartMouse.y) / viewScale;
 
-        const x = Math.min(selectionBoxStart.x, currentX);
-        const y = Math.min(selectionBoxStart.y, currentY);
-        const w = Math.abs(currentX - selectionBoxStart.x);
-        const h = Math.abs(currentY - selectionBoxStart.y);
-
-        const boxEl = document.getElementById('selection-box');
-        if(boxEl) {
-            boxEl.style.left = x + 'px'; boxEl.style.top = y + 'px';
-            boxEl.style.width = w + 'px'; boxEl.style.height = h + 'px';
-        }
-
-        desks.forEach(desk => {
-            const dLeft = desk.left; const dTop = desk.top;
-            const dRight = dLeft + 100; const dBottom = dTop + 60; 
-            const overlap = !(dRight < x || dLeft > x + w || dBottom < y || dTop > y + h);
-            if (overlap) selectedDeskIds.add(desk.id);
-            else if (!e.shiftKey && !overlap && isSelecting) selectedDeskIds.delete(desk.id);
+        selectedIds.forEach(id => {
+            const d = desks.find(x => x.id === id);
+            const start = itemStartPos[id];
+            if(d && start) {
+                // Snap to grid (10px)
+                d.left = Math.round((start.left + dx)/10)*10;
+                d.top = Math.round((start.top + dy)/10)*10;
+                
+                // Update DOM directly for performance
+                const el = document.getElementById(id);
+                if(el) {
+                    el.style.left = d.left + 'px';
+                    el.style.top = d.top + 'px';
+                }
+            }
         });
+        return;
+    }
 
-        document.querySelectorAll('.desk').forEach(el => {
-            if(selectedDeskIds.has(el.id)) el.classList.add('selected');
-            else el.classList.remove('selected');
+    // 3. Markering (Selection Box)
+    if(isSelecting && editMode) {
+        e.preventDefault();
+        const rect = document.getElementById('classroom').getBoundingClientRect();
+        const currX = (e.clientX - rect.left) / viewScale;
+        const currY = (e.clientY - rect.top) / viewScale;
+
+        const x = Math.min(selectionBoxStart.x, currX);
+        const y = Math.min(selectionBoxStart.y, currY);
+        const w = Math.abs(currX - selectionBoxStart.x);
+        const h = Math.abs(currY - selectionBoxStart.y);
+
+        const box = document.getElementById('selection-box');
+        box.style.left = x + 'px'; box.style.top = y + 'px';
+        box.style.width = w + 'px'; box.style.height = h + 'px';
+
+        // Collision Check
+        desks.forEach(d => {
+            // Sjekk senterpunkt eller enkel boks
+            const dW = (d.type === 'door' ? 80 : (d.type === 'obstacle' ? 60 : 100));
+            const dH = (d.type === 'door' ? 80 : (d.type === 'obstacle' ? 60 : 60));
+            
+            const overlap = (d.left < x + w && d.left + dW > x &&
+                             d.top < y + h && d.top + dH > y);
+            
+            if(overlap) selectedIds.add(d.id);
+            else if(!e.shiftKey) selectedIds.delete(d.id);
         });
+        
+        renderDesks(false); // Render uten full redraw (kun classes)
     }
 }
 
 function handleGlobalMouseUp(e) {
-    if(isDraggingDesks) isDraggingDesks = false;
+    if(isDraggingItems) {
+        isDraggingItems = false;
+        saveState(); // Lagre posisjon etter flytting
+    }
     if(isSelecting) {
         isSelecting = false;
-        const box = document.getElementById('selection-box');
-        if(box) box.style.display = 'none';
+        document.getElementById('selection-box').style.display = 'none';
         renderDesks();
     }
+    if(isPanning) {
+        isPanning = false;
+    }
+}
+
+/* --- RENDERING --- */
+function renderDesks(fullRedraw = true) {
+    if(!fullRedraw) {
+        // Bare oppdater selection classes
+        desks.forEach(d => {
+            const el = document.getElementById(d.id);
+            if(el) {
+                if(selectedIds.has(d.id)) el.classList.add('selected');
+                else el.classList.remove('selected');
+            }
+        });
+        return;
+    }
+
+    const room = document.getElementById('classroom');
+    const board = room.querySelector('.board');
+    const selBox = document.getElementById('selection-box');
+    room.innerHTML = '';
+    room.appendChild(board);
+    room.appendChild(selBox);
+
+    desks.forEach(d => {
+        const el = document.createElement('div');
+        el.id = d.id;
+        el.className = `desk ${d.type ? 'type-'+d.type : 'type-desk'} ${selectedIds.has(d.id) ? 'selected' : ''}`;
+        if(editMode) el.classList.add('moveable');
+        
+        el.style.top = d.top + 'px';
+        el.style.left = d.left + 'px';
+
+        // Mouse events
+        if(editMode) {
+            el.addEventListener('mousedown', (e) => handleItemMouseDown(e, d.id));
+        } else if(d.type === 'desk' || !d.type) {
+            // Drop zone only for desks
+            el.addEventListener('dragover', handleDragOver);
+            el.addEventListener('drop', handleDropStudent);
+        }
+
+        // Student Card (kun for pulter)
+        if((d.type === 'desk' || !d.type) && assignments[d.id]) {
+            const name = assignments[d.id];
+            const isLocked = locks[d.id];
+            
+            const card = document.createElement('div');
+            card.className = `student-card ${isLocked ? 'locked' : ''}`;
+            card.innerText = name;
+            card.draggable = !editMode;
+            card.dataset.deskId = d.id;
+            
+            if(isLocked) card.innerHTML += ' <i class="fas fa-lock lock-icon"></i>';
+            
+            card.addEventListener('dblclick', (e) => { e.stopPropagation(); toggleLock(d.id); });
+            if(!editMode) card.addEventListener('dragstart', handleDragStartStudent);
+            if(editMode) card.style.pointerEvents = 'none';
+
+            el.appendChild(card);
+        }
+
+        room.appendChild(el);
+    });
+}
+
+/* --- GENERATOR & LOGIC --- */
+function parseStudents() {
+    saveState();
+    const raw = document.getElementById('studentInput').value;
+    students = raw.split('\n').map(s => s.trim()).filter(s => s !== "");
+    document.getElementById('studentListCount').innerText = `${students.length} elever`;
+    updateSelectBoxes();
+    updateAttributeList();
+    saveGlobalData();
+}
+
+function updateSelectBoxes() {
+    const s1 = document.getElementById('conStudent1'); const s2 = document.getElementById('conStudent2');
+    if(!s1) return; s1.innerHTML = ''; s2.innerHTML = '';
+    students.sort().forEach(n => { s1.add(new Option(n,n)); s2.add(new Option(n,n)); });
+}
+function updateAttributeList() {
+    const l = document.getElementById('attributeList'); if(!l) return; l.innerHTML = '';
+    students.sort().forEach(n => {
+        const chk = studentAttributes[n]?.front ? 'checked' : '';
+        const li = document.createElement('li');
+        li.innerHTML = `${n} <input type="checkbox" ${chk} onchange="toggleAttr('${n}')">`;
+        l.appendChild(li);
+    });
+}
+function toggleAttr(n) {
+    saveState();
+    if(!studentAttributes[n]) studentAttributes[n] = {};
+    studentAttributes[n].front = !studentAttributes[n].front;
+    saveGlobalData();
+}
+
+function addConstraint() {
+    saveState();
+    const p1 = document.getElementById('conStudent1').value;
+    const p2 = document.getElementById('conStudent2').value;
+    if(p1 && p2 && p1!==p2) {
+        constraints.push({p1, p2});
+        renderConstraints();
+        saveGlobalData();
+    }
+}
+function renderConstraints() {
+    const l = document.getElementById('constraintList'); l.innerHTML = '';
+    constraints.forEach((c,i) => {
+        l.innerHTML += `<li>${c.p1} - ${c.p2} <i class="fas fa-trash" onclick="delConstraint(${i})"></i></li>`;
+    });
+}
+function delConstraint(i) { saveState(); constraints.splice(i,1); renderConstraints(); saveGlobalData(); }
+
+function showTab(t) {
+    document.querySelectorAll('.tab-content').forEach(e=>e.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active'));
+    document.getElementById('tab-'+t).classList.add('active');
+}
+
+function toggleEditMode() {
+    editMode = document.getElementById('editMode').checked;
+    selectedIds.clear();
+    renderDesks();
+}
+function toggleView() {
+    document.getElementById('classroom').classList.toggle('teacher-mode');
 }
 
 function handleDragStartStudent(e) {
-    draggedStudent = { name: this.innerText.trim(), fromDesk: this.dataset.deskId };
+    draggedStudent = {name: this.innerText.trim(), fromId: this.dataset.deskId};
     e.dataTransfer.effectAllowed = "move";
 }
-function handleDragOver(e) { e.preventDefault(); if (!editMode) e.dataTransfer.dropEffect = "move"; }
+function handleDragOver(e) { e.preventDefault(); if(!editMode) e.dataTransfer.dropEffect = "move"; }
 function handleDropStudent(e) {
-    e.preventDefault(); if (editMode) return;
-    const targetDeskId = this.id;
-    const sourceDeskId = draggedStudent.fromDesk;
-    const targetStudent = assignments[targetDeskId];
-    const sourceStudent = assignments[sourceDeskId];
-    assignments[targetDeskId] = sourceStudent;
-    if (targetStudent) assignments[sourceDeskId] = targetStudent; else delete assignments[sourceDeskId];
-    renderDesks();
-}
-function toggleLock(deskId) {
-    if (locks[deskId]) delete locks[deskId]; else locks[deskId] = true;
-    renderDesks();
-}
-
-function generateSeating() {
-    let lockedStudents = [];
-    Object.keys(locks).forEach(deskId => { if(assignments[deskId]) lockedStudents.push(assignments[deskId]); });
-    let availableStudents = students.filter(s => !lockedStudents.includes(s));
-    let availableDesks = desks.filter(d => !locks[d.id]);
-    availableDesks.sort((a, b) => a.top - b.top);
+    e.preventDefault(); if(editMode) return;
+    saveState();
+    const targetId = this.id;
+    const sourceId = draggedStudent.fromId;
+    const tVal = assignments[targetId];
+    const sVal = assignments[sourceId]; // Navnet
     
-    let frontStudents = availableStudents.filter(s => studentAttributes[s]?.front);
-    let otherStudents = availableStudents.filter(s => !studentAttributes[s]?.front);
-    availableDesks.forEach(d => delete assignments[d.id]);
-
-    let bestAssignment = null;
-    let minConflicts = Infinity;
-    const ATTEMPTS = 100; 
-
-    for (let i = 0; i < ATTEMPTS; i++) {
-        let tempAssign = { ...assignments }; 
-        shuffleArray(frontStudents); shuffleArray(otherStudents);
-        let pool = [...frontStudents, ...otherStudents];
-        for (let j = 0; j < Math.min(pool.length, availableDesks.length); j++) {
-            tempAssign[availableDesks[j].id] = pool[j];
-        }
-        let conflicts = countConflicts(tempAssign);
-        if (conflicts < minConflicts) { minConflicts = conflicts; bestAssignment = tempAssign; }
-        if(minConflicts === 0) break; 
-    }
-    if(bestAssignment) assignments = bestAssignment;
+    // Swap logic
+    assignments[targetId] = sVal;
+    if(tVal) assignments[sourceId] = tVal;
+    else delete assignments[sourceId];
+    
     renderDesks();
+    saveGlobalData();
 }
-function countConflicts(currAssign) {
-    let count = 0;
-    let sToD = {};
-    for (const [did, name] of Object.entries(currAssign)) { sToD[name] = desks.find(d => d.id === did); }
-    constraints.forEach(c => {
-        const d1 = sToD[c.p1]; const d2 = sToD[c.p2];
-        if (d1 && d2) {
-            const dist = Math.sqrt(Math.pow(d1.left - d2.left, 2) + Math.pow(d1.top - d2.top, 2));
-            if (dist < 140) count++;
+function toggleLock(id) {
+    saveState();
+    if(locks[id]) delete locks[id]; else locks[id] = true;
+    renderDesks();
+    saveGlobalData();
+}
+function setupInputListeners() {
+    const input = document.getElementById('studentInput');
+    input.addEventListener('change', parseStudents);
+}
+
+/* --- GENERATION ALGO --- */
+function generateSeating() {
+    saveState();
+    
+    // 1. Filtrer pulter (kun type 'desk') og elever
+    const validDesks = desks.filter(d => !d.type || d.type === 'desk');
+    let locked = [];
+    Object.keys(locks).forEach(id => { if(assignments[id]) locked.push(assignments[id]); });
+    
+    let availableStudents = students.filter(s => !locked.includes(s));
+    let availableDeskIds = validDesks.filter(d => !locks[d.id]).map(d => d.id);
+    
+    // Sorter pulter etter Y (front row first)
+    // Finn desk objekter for sorting
+    let sortableDesks = availableDeskIds.map(id => desks.find(d => d.id === id));
+    sortableDesks.sort((a,b) => a.top - b.top);
+    
+    // Fjern eksisterende assignments på ledige pulter
+    availableDeskIds.forEach(id => delete assignments[id]);
+    
+    // Prioriter "Front" elever
+    let front = availableStudents.filter(s => studentAttributes[s]?.front);
+    let others = availableStudents.filter(s => !studentAttributes[s]?.front);
+    
+    // Enkel Monte Carlo (100 forsøk)
+    let bestMapping = null;
+    let minConflicts = Infinity;
+    
+    for(let i=0; i<100; i++) {
+        let tempAssign = {...assignments};
+        shuffle(front); shuffle(others);
+        let pool = [...front, ...others];
+        
+        // Fyll pulter
+        for(let j=0; j<Math.min(pool.length, sortableDesks.length); j++) {
+            tempAssign[sortableDesks[j].id] = pool[j];
+        }
+        
+        let conf = countConflicts(tempAssign);
+        if(conf < minConflicts) {
+            minConflicts = conf;
+            bestMapping = tempAssign;
+        }
+        if(minConflicts === 0) break;
+    }
+    
+    if(bestMapping) assignments = bestMapping;
+    renderDesks();
+    saveGlobalData();
+}
+
+function countConflicts(mapping) {
+    let c = 0;
+    // Map student -> desk pos
+    let sPos = {};
+    for(let id in mapping) {
+        let s = mapping[id];
+        let d = desks.find(x => x.id === id);
+        if(d) sPos[s] = d;
+    }
+    
+    constraints.forEach(con => {
+        let d1 = sPos[con.p1];
+        let d2 = sPos[con.p2];
+        if(d1 && d2) {
+            let dist = Math.hypot(d1.left-d2.left, d1.top-d2.top);
+            if(dist < 140) c++; // Naboer
         }
     });
-    return count;
+    return c;
 }
-function shuffleArray(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } }
+
+function shuffle(a) { for(let i=a.length-1; i>0; i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }}
 function printClassroom() { window.print(); }
