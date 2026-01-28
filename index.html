@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Klasseromsgenerator</title>
+    <title>Klasseromsgenerator Pro</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -12,11 +12,28 @@
 <div class="app-container">
     <!-- SIDEBAR -->
     <div class="sidebar">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
+        
+        <!-- TOPP: Klassevelger og Nullstill -->
+        <div class="header-controls">
             <h1><i class="fas fa-graduation-cap"></i> Klasserom</h1>
-            <button onclick="resetAllData()" style="font-size:0.7rem; padding:4px; background:#95a5a6;" title="Slett lagret data og start på nytt">Nullstill</button>
+            <button onclick="resetAllData()" class="small-btn" title="Slett alt data"><i class="fas fa-power-off"></i></button>
+        </div>
+
+        <div class="section class-manager">
+            <label>Velg klasse:</label>
+            <div style="display:flex; gap:5px;">
+                <select id="classSelector" onchange="changeClass()"></select>
+                <button onclick="addClass()" title="Ny klasse" style="width:auto;"><i class="fas fa-plus"></i></button>
+                <button onclick="deleteClass()" title="Slett klasse" class="danger-btn" style="width:auto;"><i class="fas fa-trash"></i></button>
+            </div>
         </div>
         
+        <!-- ANGRE KNAPPER -->
+        <div class="undo-controls">
+            <button onclick="undo()" title="Angre (Ctrl+Z)"><i class="fas fa-undo"></i> Angre</button>
+            <button onclick="redo()" title="Gjør om"><i class="fas fa-redo"></i> Gjør om</button>
+        </div>
+
         <!-- 1. ELEVER -->
         <div class="section">
             <h3>1. Elever</h3>
@@ -55,22 +72,29 @@
         <div class="section">
             <h3>3. Møbelbank</h3>
             <div class="room-controls" style="display:flex; gap:5px; margin-bottom:10px;">
-                <button onclick="deleteSelectedDesks()" class="danger-btn" style="background:#e67e22; flex:1;">
-                    <i class="fas fa-eraser"></i> Slett valgte
+                <button onclick="deleteSelected()" class="danger-btn" style="background:#e67e22; flex:1;">
+                    <i class="fas fa-eraser"></i> Slett valgt
                 </button>
-                <button onclick="clearDesks()" class="danger-btn" style="flex:1;">
-                    <i class="fas fa-trash"></i> Tøm alt
+                <button onclick="clearRoom()" class="danger-btn" style="flex:1;">
+                    <i class="fas fa-trash"></i> Tøm rom
                 </button>
             </div>
             
-            <p style="font-size:0.9rem; margin-bottom:5px;">Klikk for å sette inn:</p>
+            <p style="font-size:0.9rem; margin-bottom:5px;">Pulter & Grupper:</p>
             <div class="furniture-bank">
-                <button onclick="addPreset('single')" title="Enkel"><i class="fas fa-square"></i> Enkel</button>
-                <button onclick="addPreset('pair')" title="Par"><i class="fas fa-user-friends"></i> Par</button>
-                <button onclick="addPreset('row4')" title="Rekke (4)"><i class="fas fa-ellipsis-h"></i> Rekke (4)</button>
-                <button onclick="addPreset('group4')" title="Gruppe (4)"><i class="fas fa-th-large"></i> Gruppe (4)</button>
-                <button onclick="addPreset('group3')" title="Gruppe (3)"><i class="fas fa-users"></i> Gruppe (3)</button>
-                <button onclick="addPreset('horseshoe')" title="Hestesko"><i class="fas fa-magnet"></i> Hestesko</button>
+                <button onclick="addItem('single')" title="Enkel"><i class="fas fa-square"></i> Enkel</button>
+                <button onclick="addItem('pair')" title="Par"><i class="fas fa-user-friends"></i> Par</button>
+                <button onclick="addItem('row4')" title="Rekke (4)"><i class="fas fa-ellipsis-h"></i> Rekke (4)</button>
+                <button onclick="addItem('group4')" title="Gruppe (4)"><i class="fas fa-th-large"></i> Grp (4)</button>
+                <button onclick="addItem('group3')" title="Gruppe (3)"><i class="fas fa-users"></i> Grp (3)</button>
+                <button onclick="addItem('horseshoe')" title="Hestesko"><i class="fas fa-magnet"></i> Hestesko</button>
+            </div>
+
+            <p style="font-size:0.9rem; margin:10px 0 5px 0;">Fysisk rom:</p>
+            <div class="furniture-bank">
+                <button onclick="addItem('door')" style="border-left:4px solid brown;"><i class="fas fa-door-open"></i> Dør</button>
+                <button onclick="addItem('window')" style="border-left:4px solid #3498db;"><i class="fas fa-columns"></i> Vindu</button>
+                <button onclick="addItem('obstacle')" style="border-left:4px solid #333;"><i class="fas fa-cube"></i> Søyle/Ting</button>
             </div>
         </div>
 
@@ -80,7 +104,7 @@
             <button class="generate-btn" onclick="generateSeating()">Plasser elever <i class="fas fa-random"></i></button>
             <p style="margin-top:10px; font-size:0.85rem; color:#555;">
                 <i class="fas fa-info-circle"></i> 
-                Tips: Bruk <strong>Delete</strong> for å slette.
+                Tips: Hold <strong>Mellomrom</strong> for å panorere.
             </p>
         </div>
     </div>
@@ -88,21 +112,32 @@
     <!-- HOVEDOMRÅDE -->
     <div class="main-area">
         <div class="toolbar">
-            <div style="display:flex; gap:15px; align-items:center;">
+            <div class="left-tools">
                 <label class="toggle-label">
                     <input type="checkbox" id="editMode" onchange="toggleEditMode()"> 
-                    <strong>Innredningsmodus</strong>
+                    <strong>Innredning</strong>
                 </label>
-                <button onclick="toggleView()" style="margin-top:0; background:#9b59b6;">
-                    <i class="fas fa-exchange-alt"></i> Bytt visning (Lærer/Elev)
+                <button onclick="toggleView()" style="background:#9b59b6;">
+                    <i class="fas fa-exchange-alt"></i> Visning
                 </button>
             </div>
+            
+            <div class="zoom-controls">
+                <button onclick="adjustZoom(-0.1)"><i class="fas fa-search-minus"></i></button>
+                <span id="zoomLevel">100%</span>
+                <button onclick="adjustZoom(0.1)"><i class="fas fa-search-plus"></i></button>
+                <button onclick="resetZoom()" title="Nullstill zoom"><i class="fas fa-compress"></i></button>
+            </div>
+
             <button onclick="printClassroom()"><i class="fas fa-print"></i> Skriv ut</button>
         </div>
         
-        <div id="classroom">
-            <div class="board">TAVLE / LÆRER</div>
-            <div id="selection-box"></div>
+        <!-- Container for panorering/zoom -->
+        <div id="classroom-container">
+            <div id="classroom">
+                <div class="board">TAVLE / LÆRER</div>
+                <div id="selection-box"></div>
+            </div>
         </div>
     </div>
 </div>
