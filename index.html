@@ -48,7 +48,7 @@
             </div>
         </div>
 
-        <!-- 3. MØBLERING (Oppdatert med slett-knapp) -->
+        <!-- 3. MØBLERING -->
         <div class="section">
             <h3>3. Møbelbank</h3>
             <div class="room-controls" style="display:flex; gap:5px; margin-bottom:10px;">
@@ -77,7 +77,7 @@
             <button class="generate-btn" onclick="generateSeating()">Plasser elever <i class="fas fa-random"></i></button>
             <p style="margin-top:10px; font-size:0.85rem; color:#555;">
                 <i class="fas fa-info-circle"></i> 
-                Tips: Du kan bruke <strong>Delete</strong>-tasten for å slette markerte pulter.
+                Tips: Bruk <strong>Delete</strong> for å slette.
             </p>
         </div>
     </div>
@@ -85,10 +85,16 @@
     <!-- HOVEDOMRÅDE -->
     <div class="main-area">
         <div class="toolbar">
-            <label class="toggle-label">
-                <input type="checkbox" id="editMode" onchange="toggleEditMode()"> 
-                <strong>Innredningsmodus</strong> (Flytt/Slett)
-            </label>
+            <div style="display:flex; gap:15px; align-items:center;">
+                <label class="toggle-label">
+                    <input type="checkbox" id="editMode" onchange="toggleEditMode()"> 
+                    <strong>Innredningsmodus</strong>
+                </label>
+                <!-- NY KNAPP FOR VISNING -->
+                <button onclick="toggleView()" style="margin-top:0; background:#9b59b6;">
+                    <i class="fas fa-exchange-alt"></i> Bytt visning (Lærer/Elev)
+                </button>
+            </div>
             <button onclick="printClassroom()"><i class="fas fa-print"></i> Skriv ut</button>
         </div>
         
