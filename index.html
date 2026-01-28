@@ -12,7 +12,10 @@
 <div class="app-container">
     <!-- SIDEBAR -->
     <div class="sidebar">
-        <h1><i class="fas fa-graduation-cap"></i> Klasserom</h1>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h1><i class="fas fa-graduation-cap"></i> Klasserom</h1>
+            <button onclick="resetAllData()" style="font-size:0.7rem; padding:4px; background:#95a5a6;" title="Slett lagret data og start på nytt">Nullstill</button>
+        </div>
         
         <!-- 1. ELEVER -->
         <div class="section">
@@ -90,7 +93,6 @@
                     <input type="checkbox" id="editMode" onchange="toggleEditMode()"> 
                     <strong>Innredningsmodus</strong>
                 </label>
-                <!-- NY KNAPP FOR VISNING -->
                 <button onclick="toggleView()" style="margin-top:0; background:#9b59b6;">
                     <i class="fas fa-exchange-alt"></i> Bytt visning (Lærer/Elev)
                 </button>
@@ -100,7 +102,6 @@
         
         <div id="classroom">
             <div class="board">TAVLE / LÆRER</div>
-            <!-- Markeringsboks -->
             <div id="selection-box"></div>
         </div>
     </div>
