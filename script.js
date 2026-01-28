@@ -6,7 +6,6 @@ let desks = [];
 let assignments = {}; 
 let locks = {}; 
 
-// Markering og flytting variabler
 let editMode = false;
 let deskCounter = 0;
 let selectedDeskIds = new Set(); 
@@ -16,42 +15,74 @@ let isSelecting = false;
 let dragStartMouse = { x: 0, y: 0 };
 let dragStartDeskPositions = {}; 
 let selectionBoxStart = { x: 0, y: 0 };
-
 let draggedStudent = null;
 
-/* NY FUNKSJON: Bytt mellom Lærer og Elev visning */
-function toggleView() {
-    const room = document.getElementById('classroom');
-    room.classList.toggle('teacher-mode');
+/* --- LAGRING OG LASTING AV DATA (LOCAL STORAGE) --- */
+
+function saveState() {
+    const state = {
+        students,
+        constraints,
+        studentAttributes,
+        desks,
+        assignments,
+        locks,
+        deskCounter
+    };
+    localStorage.setItem('seatingAppData', JSON.stringify(state));
 }
 
-/* SLETT-FUNKSJONEN */
-function deleteSelectedDesks() {
-    if (selectedDeskIds.size === 0) {
-        alert("Ingen pulter er markert. Klikk på en pult først.");
-        return;
+function loadState() {
+    const raw = localStorage.getItem('seatingAppData');
+    if (raw) {
+        const data = JSON.parse(raw);
+        students = data.students || [];
+        constraints = data.constraints || [];
+        studentAttributes = data.studentAttributes || {};
+        desks = data.desks || [];
+        assignments = data.assignments || {};
+        locks = data.locks || {};
+        deskCounter = data.deskCounter || 0;
+        
+        // Fyll inn tekstboksen med lagrede navn
+        document.getElementById('studentInput').value = students.join('\n');
+        return true; // Fant data
     }
-    selectedDeskIds.forEach(id => {
-        delete assignments[id];
-        delete locks[id];
-    });
-    desks = desks.filter(desk => !selectedDeskIds.has(desk.id));
-    selectedDeskIds.clear();
-    renderDesks();
+    return false; // Fant ingen data
+}
+
+function resetAllData() {
+    if(confirm("Dette vil slette alt lagret innhold og starte på nytt. Er du sikker?")) {
+        localStorage.removeItem('seatingAppData');
+        location.reload(); // Last siden på nytt
+    }
 }
 
 /* INITIALISERING */
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('studentInput').value = "Ola\nKari\nPer\nPål\nEspen\nAskeladd\nSofie\nNora\nJakob\nEmma\nLinus\nSara";
-    parseStudents();
-    addPreset('group4'); 
-    desks.forEach(d => { d.top += 50; d.left += 100; });
+    // Prøv å laste lagret data
+    const hasData = loadState();
+
+    if (!hasData) {
+        // Hvis ingen data finnes, last demo
+        document.getElementById('studentInput').value = "Ola\nKari\nPer\nPål\nEspen\nAskeladd\nSofie\nNora\nJakob\nEmma\nLinus\nSara";
+        parseStudents(); // Dette vil også lagre første gang
+        addPreset('group4'); 
+        desks.forEach(d => { d.top += 50; d.left += 100; });
+    } else {
+        // Hvis data fantes, oppdater GUI
+        document.getElementById('studentListCount').innerText = `${students.length} elever registrert`;
+        updateSelectBoxes();
+        updateAttributeList();
+        renderConstraints();
+    }
+    
+    // Uansett, tegn opp det vi har
     renderDesks();
 
+    // Event listeners
     const room = document.getElementById('classroom');
-    if(room) {
-        room.addEventListener('mousedown', handleRoomMouseDown);
-    }
+    if(room) room.addEventListener('mousedown', handleRoomMouseDown);
     window.addEventListener('mousemove', handleGlobalMouseMove);
     window.addEventListener('mouseup', handleGlobalMouseUp);
     
@@ -67,13 +98,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-/* 1. ELEV HÅNDTERING */
+/* GUI & LOGIKK */
+
+function toggleView() {
+    const room = document.getElementById('classroom');
+    room.classList.toggle('teacher-mode');
+}
+
+function deleteSelectedDesks() {
+    if (selectedDeskIds.size === 0) {
+        alert("Ingen pulter er markert. Klikk på en pult først.");
+        return;
+    }
+    selectedDeskIds.forEach(id => {
+        delete assignments[id];
+        delete locks[id];
+    });
+    desks = desks.filter(desk => !selectedDeskIds.has(desk.id));
+    selectedDeskIds.clear();
+    renderDesks();
+}
+
 function parseStudents() {
     const raw = document.getElementById('studentInput').value;
     students = raw.split('\n').map(s => s.trim()).filter(s => s !== "");
     document.getElementById('studentListCount').innerText = `${students.length} elever registrert`;
     updateSelectBoxes();
     updateAttributeList();
+    saveState(); // Lagre
 }
 
 function updateSelectBoxes() {
@@ -102,9 +154,9 @@ function updateAttributeList() {
 function toggleAttribute(name, attr) {
     if (!studentAttributes[name]) studentAttributes[name] = {};
     studentAttributes[name][attr] = !studentAttributes[name][attr];
+    saveState(); // Lagre
 }
 
-/* 2. REGLER */
 function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -121,7 +173,11 @@ function addConstraint() {
     const s2 = document.getElementById('conStudent2').value;
     if (s1 && s2 && s1 !== s2) {
         const exists = constraints.some(c => (c.p1 === s1 && c.p2 === s2) || (c.p1 === s2 && c.p2 === s1));
-        if (!exists) { constraints.push({ p1: s1, p2: s2 }); renderConstraints(); }
+        if (!exists) { 
+            constraints.push({ p1: s1, p2: s2 }); 
+            renderConstraints(); 
+            saveState(); // Lagre
+        }
     }
 }
 
@@ -134,9 +190,12 @@ function renderConstraints() {
         list.appendChild(li);
     });
 }
-function removeConstraint(index) { constraints.splice(index, 1); renderConstraints(); }
+function removeConstraint(index) { 
+    constraints.splice(index, 1); 
+    renderConstraints(); 
+    saveState(); // Lagre
+}
 
-/* 3. MØBLERING & PULT LOGIKK */
 function addDesk(top = 100, left = 100) {
     deskCounter++;
     const deskId = `desk-${deskCounter}`;
@@ -186,7 +245,6 @@ function toggleEditMode() {
     renderDesks(); 
 }
 
-/* RENDERING */
 function renderDesks() {
     const room = document.getElementById('classroom');
     const board = room.querySelector('.board');
@@ -232,9 +290,10 @@ function renderDesks() {
         }
         room.appendChild(deskEl);
     });
+    
+    saveState(); // VIKTIG: Lagre hver gang vi tegner opp
 }
 
-/* 4. DRAG & SELECT */
 function handleDeskMouseDown(e, deskId) {
     if (!editMode) return;
     e.preventDefault(); e.stopPropagation();
@@ -297,7 +356,6 @@ function handleGlobalMouseMove(e) {
             if (deskData && startPos) {
                 let newLeft = startPos.left + dx;
                 let newTop = startPos.top + dy;
-                // Snap to grid
                 newLeft = Math.round(newLeft / 10) * 10;
                 newTop = Math.round(newTop / 10) * 10;
                 deskData.left = newLeft; deskData.top = newTop;
@@ -349,7 +407,6 @@ function handleGlobalMouseUp(e) {
     }
 }
 
-/* 5. ELEV BYTTE OG LÅS */
 function handleDragStartStudent(e) {
     draggedStudent = { name: this.innerText.trim(), fromDesk: this.dataset.deskId };
     e.dataTransfer.effectAllowed = "move";
@@ -370,7 +427,6 @@ function toggleLock(deskId) {
     renderDesks();
 }
 
-/* 6. GENERATOR */
 function generateSeating() {
     let lockedStudents = [];
     Object.keys(locks).forEach(deskId => { if(assignments[deskId]) lockedStudents.push(assignments[deskId]); });
