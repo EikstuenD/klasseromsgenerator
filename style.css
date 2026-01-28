@@ -21,55 +21,56 @@ body {
     overflow: hidden;
 }
 
-.app-container {
-    display: flex;
-    height: 100vh;
-}
+.app-container { display: flex; height: 100vh; }
 
-/* SIDEBAR STYLES */
+/* SIDEBAR */
 .sidebar {
-    width: 340px;
+    width: 350px;
     background: var(--sidebar-bg);
-    padding: 20px;
+    padding: 15px;
     border-right: 1px solid #ccc;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 15px;
     box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-    z-index: 10;
+    z-index: 20;
 }
 
-h1 { margin-top: 0; font-size: 1.5rem; color: #333; }
-h3 { margin-bottom: 10px; font-size: 1rem; color: #555; border-bottom: 2px solid var(--primary-color); display: inline-block; }
+.header-controls { display: flex; justify-content: space-between; align-items: center; }
+h1 { margin: 0; font-size: 1.4rem; color: #333; }
+h3 { margin-bottom: 8px; font-size: 1rem; color: #555; border-bottom: 2px solid var(--primary-color); display: inline-block; }
 
-.section { margin-bottom: 10px; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px; }
-.section:last-child { border-bottom: none; }
+.section { border-bottom: 1px solid #f0f0f0; padding-bottom: 15px; }
 
+/* Buttons & Inputs */
 textarea {
-    width: 100%; height: 80px; padding: 8px;
+    width: 100%; height: 70px; padding: 8px;
     border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-family: inherit;
 }
-
 button {
     background: var(--primary-color); color: white; border: none;
     padding: 8px 12px; border-radius: 4px; cursor: pointer;
-    margin-top: 5px; transition: background 0.2s;
+    margin-top: 5px; transition: filter 0.2s;
 }
 button:hover { filter: brightness(90%); }
+.danger-btn { background: var(--danger-color); }
+.small-btn { padding: 4px 8px; font-size: 0.8rem; background: #7f8c8d; }
 
-.danger-btn { background: var(--danger-color); width: 100%; }
+.class-manager select {
+    flex-grow: 1; padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 1rem;
+}
+
+.undo-controls { display: flex; gap: 5px; }
+.undo-controls button { flex: 1; background: #34495e; margin-top:0; }
+
 .generate-btn { width: 100%; font-size: 1.1rem; padding: 12px; background: #27ae60; font-weight: bold; }
-.generate-btn:hover { background: #219150; }
 
 .small-list {
     list-style: none; padding: 0; margin-top: 10px;
-    max-height: 120px; overflow-y: auto; border: 1px solid #eee; background: #fafafa;
+    max-height: 100px; overflow-y: auto; border: 1px solid #eee; background: #fafafa;
 }
-.small-list li {
-    padding: 6px; border-bottom: 1px solid #eee; display: flex;
-    justify-content: space-between; align-items: center; font-size: 0.9rem;
-}
+.small-list li { padding: 5px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
 
 .constraint-input { display: flex; flex-direction: column; gap: 5px; }
 .constraint-input select { padding: 5px; }
@@ -82,7 +83,7 @@ button:hover { filter: brightness(90%); }
 .tab-content.active { display: block; }
 
 /* MØBELBANK */
-.furniture-bank { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.furniture-bank { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .furniture-bank button {
     margin-top: 0; background: #f8f9fa; color: #333; border: 1px solid #ccc;
     font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -90,61 +91,80 @@ button:hover { filter: brightness(90%); }
 .furniture-bank button:hover { background: #e2e6ea; }
 
 /* MAIN AREA */
-.main-area { flex-grow: 1; display: flex; flex-direction: column; position: relative; }
+.main-area { flex-grow: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
 
 .toolbar {
-    padding: 10px 20px; background: #fff; border-bottom: 1px solid #ccc;
+    padding: 10px 15px; background: #fff; border-bottom: 1px solid #ccc;
     display: flex; justify-content: space-between; align-items: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05); z-index: 5;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05); z-index: 10;
 }
+.left-tools, .zoom-controls { display: flex; align-items: center; gap: 10px; }
+.zoom-controls span { font-size: 0.9rem; width: 45px; text-align: center; }
+.zoom-controls button { margin: 0; padding: 6px 10px; background: #7f8c8d; }
 
 .toggle-label {
-    display: flex; align-items: center; gap: 10px; cursor: pointer;
-    background: #fff8e1; padding: 5px 10px; border: 1px solid #f1c40f; border-radius: 4px;
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    background: #fff8e1; padding: 6px 12px; border: 1px solid #f1c40f; border-radius: 4px;
 }
 
+/* KLASSEROM CONTAINER (Zoom/Pan context) */
+#classroom-container {
+    flex-grow: 1;
+    position: relative;
+    overflow: hidden; /* Vi styrer panorering med transform, ikke native scrollbars for å støtte zoom */
+    background-color: #eee;
+    cursor: default;
+}
+#classroom-container.panning { cursor: grab; }
+#classroom-container.panning:active { cursor: grabbing; }
+
+/* KLASSEROM CANVAS */
 #classroom {
-    flex-grow: 1; position: relative; background-color: #fff;
+    width: 2000px; height: 2000px; /* Stort canvas */
+    background-color: #fff;
     background-image: radial-gradient(#ddd 2px, transparent 2px);
     background-size: 20px 20px;
-    overflow: hidden;
-    user-select: none;
-    transition: transform 0.6s ease-in-out; 
+    position: absolute;
+    top: 0; left: 0;
+    transform-origin: 0 0;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
 }
 
-/* LÆRER-MODUS */
+/* ROTASJON (Lærer-visning) */
 .teacher-mode { transform: rotate(180deg); }
 .teacher-mode .student-card, .teacher-mode .board { transform: rotate(180deg); }
 
-#selection-box {
-    position: absolute; border: 1px dashed var(--primary-color);
-    background-color: rgba(74, 144, 226, 0.2); display: none;
-    z-index: 100; pointer-events: none; 
-}
-
-.board {
-    width: 50%; height: 40px; background: #333; color: white;
-    margin: 20px auto; display: flex; justify-content: center; align-items: center;
-    border-radius: 4px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    border: 4px solid #555; transition: transform 0.6s ease-in-out;
-}
-
-/* DESK STYLES */
+/* OBJEKTER */
 .desk {
-    width: var(--desk-width); height: var(--desk-height);
-    background: var(--desk-color); border: 2px solid var(--desk-border);
     position: absolute; border-radius: 8px;
     display: flex; justify-content: center; align-items: center;
-    user-select: none;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    user-select: none; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+}
+.desk.moveable { cursor: grab; }
+.desk.moveable:active { cursor: grabbing; }
+.desk.selected {
+    border-color: var(--selected-color) !important;
+    box-shadow: 0 0 0 3px rgba(41, 128, 185, 0.4); z-index: 100;
 }
 
-.desk.moveable { cursor: grab; background: #f0f0f0; }
-.desk.moveable:active { cursor: grabbing; }
-
-.desk.selected {
-    border-color: var(--selected-color); background-color: #d6eaf8;
-    box-shadow: 0 0 8px rgba(41, 128, 185, 0.6); z-index: 50;
+/* Typer Møbler */
+.type-desk {
+    width: var(--desk-width); height: var(--desk-height);
+    background: var(--desk-color); border: 2px solid var(--desk-border);
+}
+.type-door {
+    width: 80px; height: 15px; background: #8d6e63; border: 1px solid #5d4037;
+    border-radius: 2px;
+}
+.type-door::after { /* Swing arc visualization */
+    content: ''; position: absolute; top: 0; left: 0; width: 80px; height: 80px;
+    border-left: 1px dashed #999; border-top: 1px dashed #999; border-radius: 100% 0 0 0; pointer-events: none;
+}
+.type-window {
+    width: 100px; height: 10px; background: #81d4fa; border: 1px solid #2980b9;
+}
+.type-obstacle {
+    width: 60px; height: 60px; background: #555; border-radius: 50%; border: 2px solid #333;
 }
 
 .student-card {
@@ -152,18 +172,28 @@ button:hover { filter: brightness(90%); }
     display: flex; justify-content: center; align-items: center;
     text-align: center; font-size: 0.9rem; font-weight: 500;
     cursor: grab; border: 1px solid #ddd; overflow: hidden;
-    word-wrap: break-word; position: relative; transition: transform 0.6s ease-in-out;
+    position: relative; transition: transform 0.6s ease-in-out;
 }
-.student-card:active { cursor: grabbing; }
 .student-card.locked { border: 2px solid #f39c12; background: #fffdf5; }
 .lock-icon { position: absolute; top: 2px; right: 2px; font-size: 10px; color: #f39c12; }
-.desk.drag-over { background-color: #d4edda; border-color: #28a745; transform: scale(1.05); }
+
+.board {
+    width: 400px; height: 40px; background: #333; color: white;
+    margin: 20px auto; display: flex; justify-content: center; align-items: center;
+    border-radius: 4px; font-weight: bold; border: 4px solid #555;
+    position: absolute; left: 800px; top: 50px; /* Fast startposisjon på stort canvas */
+    transition: transform 0.6s ease-in-out;
+}
+
+/* Markeringsboks */
+#selection-box {
+    position: absolute; border: 1px dashed var(--primary-color);
+    background-color: rgba(74, 144, 226, 0.2); display: none;
+    z-index: 999; pointer-events: none; 
+}
 
 @media print {
     .sidebar, .toolbar { display: none !important; }
-    .app-container { height: auto; display: block; }
-    #classroom { border: none; height: 100vh; background: white; }
-    .desk { border: 2px solid #000; box-shadow: none; background: #fff; }
-    .student-card { border: 1px solid #000; font-size: 12pt; }
-    .board { background: #999; color: black; border: 2px solid black; }
+    #classroom-container { overflow: visible; height: auto; }
+    #classroom { transform: none !important; box-shadow: none; width: 100%; height: 100%; }
 }
