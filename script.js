@@ -1,19 +1,19 @@
 /* --- STATE & DATA MODEL --- */
 let appData = {
-    classes: {}, // Lagrer data for hver klasse: { "8A": { students: [], desks: [], ... } }
+    classes: {}, 
     currentClassId: null
 };
 
-// Variabler for gjeldende aktive klasse (speiler innholdet i appData.classes[currentClassId])
+// Variabler for aktiv klasse
 let students = [];
-let constraints = []; // {p1, p2}
-let studentAttributes = {}; // {Navn: {front: true}}
-let desks = []; // {id, type, top, left}
-let assignments = {}; // {deskId: studentName}
-let locks = {}; // {deskId: true}
+let constraints = []; 
+let studentAttributes = {}; 
+let desks = []; 
+let assignments = {}; 
+let locks = {}; 
 let deskCounter = 0;
 
-// Historikk for Angre/Gjør om
+// Historikk
 let historyStack = [];
 let redoStack = [];
 
@@ -29,27 +29,26 @@ let panY = 0;
 let isPanning = false;
 let panStart = {x:0, y:0};
 
-// Dragging av objekter
+// Dragging
 let isDraggingItems = false;
 let isSelecting = false;
 let dragStartMouse = {x:0, y:0};
-let itemStartPos = {}; // {id: {top, left}}
+let itemStartPos = {}; 
 let selectionBoxStart = {x:0, y:0};
 
 /* --- INITIALISERING --- */
 document.addEventListener('DOMContentLoaded', () => {
     loadGlobalData();
 
-    // Setup Canvas posisjon (Sentrer visning)
-    centerView();
+    // VIKTIG: Sentrer visningen på tavla (øverst), ikke midt i rommet
+    resetViewToTop();
 
-    // Event Listeners
     setupInputListeners();
     
-    // Scrolle/Panorere logikk
+    // Setup Scrolle/Panorere logikk
     const container = document.getElementById('classroom-container');
     container.addEventListener('mousedown', handleContainerMouseDown);
-    container.addEventListener('wheel', handleWheelZoom, {passive: false}); // Zoom med hjul
+    container.addEventListener('wheel', handleWheelZoom, {passive: false}); 
     
     window.addEventListener('mousemove', handleGlobalMouseMove);
     window.addEventListener('mouseup', handleGlobalMouseUp);
@@ -57,31 +56,70 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keyup', handleKeyUp);
 });
 
-/* --- DATA MANAGEMENT (FLERE KLASSER) --- */
+/* --- VIEW CONTROL (NY / ENDRET) --- */
+
+function resetViewToTop() {
+    const container = document.getElementById('classroom-container');
+    const cw = container.clientWidth;
+    
+    // 1. Sentrer Horisontalt: (ContainerBredde - CanvasBredde) / 2
+    // Canvas er 2000px bredt i CSS
+    panX = (cw - 2000) / 2;
+    
+    // 2. Start Vertikalt på toppen:
+    // Vi setter den til 20px padding så tavla synes med en gang
+    panY = 20;
+
+    viewScale = 1; // Start med 100% zoom
+    document.getElementById('zoomLevel').innerText = '100%';
+    
+    updateViewTransform();
+}
+
+function adjustZoom(delta) {
+    viewScale += delta;
+    if(viewScale < 0.2) viewScale = 0.2;
+    if(viewScale > 3.0) viewScale = 3.0;
+    updateViewTransform();
+    document.getElementById('zoomLevel').innerText = Math.round(viewScale * 100) + '%';
+}
+
+function resetZoom() {
+    resetViewToTop(); // Bruker den nye funksjonen her også
+}
+
+function updateViewTransform() {
+    const room = document.getElementById('classroom');
+    room.style.transform = `translate(${panX}px, ${panY}px) scale(${viewScale})`;
+}
+
+function handleWheelZoom(e) {
+    if(e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        adjustZoom(delta);
+    }
+}
+
+/* --- DATA MANAGEMENT --- */
 function loadGlobalData() {
     const raw = localStorage.getItem('seatingAppPro');
     if(raw) {
         appData = JSON.parse(raw);
     } else {
-        // Opprett standard klasse hvis ingen finnes
         createClass("Min Klasse", true);
     }
-    
-    // Fyll dropdown
     updateClassSelector();
     
-    // Last inn valgt klasse
     if(appData.currentClassId && appData.classes[appData.currentClassId]) {
         loadClass(appData.currentClassId);
     } else {
-        // Fallback til første klasse
         const firstId = Object.keys(appData.classes)[0];
         if(firstId) loadClass(firstId);
     }
 }
 
 function saveGlobalData() {
-    // Lagre nåværende state tilbake til appData-objektet
     if(appData.currentClassId) {
         appData.classes[appData.currentClassId] = {
             students, constraints, studentAttributes, desks, assignments, locks, deskCounter
@@ -94,7 +132,6 @@ function loadClass(classId) {
     appData.currentClassId = classId;
     const data = appData.classes[classId];
     
-    // Kopier data til arbeidsvariabler
     students = data.students || [];
     constraints = data.constraints || [];
     studentAttributes = data.studentAttributes || {};
@@ -103,12 +140,10 @@ function loadClass(classId) {
     locks = data.locks || {};
     deskCounter = data.deskCounter || 0;
 
-    // Oppdater UI
     document.getElementById('studentInput').value = students.join('\n');
     document.getElementById('studentListCount').innerText = `${students.length} elever`;
     document.getElementById('classSelector').value = classId;
     
-    // Nullstill historikk når vi bytter klasse
     historyStack = [];
     redoStack = [];
     
@@ -121,35 +156,28 @@ function loadClass(classId) {
 function createClass(name, isInit = false) {
     const id = name || prompt("Navn på ny klasse:");
     if(!id) return;
-    if(appData.classes[id]) {
-        alert("En klasse med dette navnet finnes allerede.");
-        return;
-    }
+    if(appData.classes[id]) { alert("Finnes allerede."); return; }
 
-    // Init data
     appData.classes[id] = {
         students: isInit ? ["Ola", "Kari", "Per", "Pål"] : [],
         constraints: [], studentAttributes: {}, desks: [], assignments: {}, locks: {}, deskCounter: 0
     };
-    
     appData.currentClassId = id;
     saveGlobalData();
     updateClassSelector();
     loadClass(id);
     
     if(isInit) {
-        addItem('group4'); // Legg til litt møbler for demo
+        addItem('group4'); 
         saveState();
     }
 }
 
 function deleteClass() {
     const id = appData.currentClassId;
-    if(!confirm(`Er du sikker på at du vil slette "${id}"?`)) return;
-    
+    if(!confirm(`Slette "${id}"?`)) return;
     delete appData.classes[id];
     
-    // Finn en ny ID å bytte til
     const remaining = Object.keys(appData.classes);
     if(remaining.length > 0) {
         appData.currentClassId = remaining[0];
@@ -157,58 +185,42 @@ function deleteClass() {
         updateClassSelector();
         loadClass(remaining[0]);
     } else {
-        createClass("Min Klasse", true); // Reset to blank
+        createClass("Min Klasse", true);
     }
 }
 
 function updateClassSelector() {
     const sel = document.getElementById('classSelector');
     sel.innerHTML = '';
-    Object.keys(appData.classes).forEach(id => {
-        sel.add(new Option(id, id));
-    });
+    Object.keys(appData.classes).forEach(id => { sel.add(new Option(id, id)); });
     sel.value = appData.currentClassId;
 }
 
 function changeClass() {
-    const newId = document.getElementById('classSelector').value;
-    loadClass(newId);
+    loadClass(document.getElementById('classSelector').value);
 }
 
 function resetAllData() {
-    if(confirm("Slette ALT data? Dette kan ikke angres.")) {
+    if(confirm("Slette ALT?")) {
         localStorage.removeItem('seatingAppPro');
         location.reload();
     }
 }
 
-/* --- HISTORIKK (UNDO/REDO) --- */
+/* --- HISTORIKK --- */
 function saveState() {
-    // Lagre snapshot for Undo
-    const snapshot = JSON.stringify({
-        students, constraints, studentAttributes, desks, assignments, locks, deskCounter
-    });
-    
-    // Ikke lagre hvis ingen endring (enkel sjekk)
+    const snapshot = JSON.stringify({ students, constraints, studentAttributes, desks, assignments, locks, deskCounter });
     if(historyStack.length > 0 && historyStack[historyStack.length-1] === snapshot) return;
-
     historyStack.push(snapshot);
-    if(historyStack.length > 50) historyStack.shift(); // Max 50 steg
-    redoStack = []; // Tøm redo når vi gjør noe nytt
-    
-    saveGlobalData(); // Lagre til disk også
+    if(historyStack.length > 50) historyStack.shift(); 
+    redoStack = []; 
+    saveGlobalData(); 
 }
 
 function undo() {
     if(historyStack.length === 0) return;
-    
-    // Lagre nåværende tilstand til Redo
-    const currentSnapshot = JSON.stringify({
-        students, constraints, studentAttributes, desks, assignments, locks, deskCounter
-    });
+    const currentSnapshot = JSON.stringify({ students, constraints, studentAttributes, desks, assignments, locks, deskCounter });
     redoStack.push(currentSnapshot);
-    
-    // Hent forrige
     const prev = JSON.parse(historyStack.pop());
     applySnapshot(prev);
     saveGlobalData();
@@ -216,83 +228,28 @@ function undo() {
 
 function redo() {
     if(redoStack.length === 0) return;
-    
     const next = JSON.parse(redoStack.pop());
-    
-    // Dytt nåværende til Undo
-    const currentSnapshot = JSON.stringify({
-        students, constraints, studentAttributes, desks, assignments, locks, deskCounter
-    });
+    const currentSnapshot = JSON.stringify({ students, constraints, studentAttributes, desks, assignments, locks, deskCounter });
     historyStack.push(currentSnapshot);
-    
     applySnapshot(next);
     saveGlobalData();
 }
 
 function applySnapshot(data) {
-    students = data.students;
-    constraints = data.constraints;
-    studentAttributes = data.studentAttributes;
-    desks = data.desks;
-    assignments = data.assignments;
-    locks = data.locks;
-    deskCounter = data.deskCounter;
+    students = data.students; constraints = data.constraints; studentAttributes = data.studentAttributes;
+    desks = data.desks; assignments = data.assignments; locks = data.locks; deskCounter = data.deskCounter;
     
     document.getElementById('studentInput').value = students.join('\n');
     document.getElementById('studentListCount').innerText = `${students.length} elever`;
-    
-    updateSelectBoxes();
-    updateAttributeList();
-    renderConstraints();
-    renderDesks();
-}
-
-/* --- ZOOM & PANORERING --- */
-function adjustZoom(delta) {
-    viewScale += delta;
-    if(viewScale < 0.2) viewScale = 0.2;
-    if(viewScale > 3.0) viewScale = 3.0;
-    updateViewTransform();
-    document.getElementById('zoomLevel').innerText = Math.round(viewScale * 100) + '%';
-}
-
-function resetZoom() {
-    viewScale = 1;
-    centerView(); // Reset pan også
-    document.getElementById('zoomLevel').innerText = '100%';
-}
-
-function centerView() {
-    // Sentrer det store 2000x2000 canvaset i viewporten
-    const container = document.getElementById('classroom-container');
-    const cw = container.clientWidth;
-    const ch = container.clientHeight;
-    panX = (cw - 2000) / 2;
-    panY = (ch - 2000) / 2;
-    updateViewTransform();
-}
-
-function updateViewTransform() {
-    const room = document.getElementById('classroom');
-    // Vi bruker translate og scale
-    room.style.transform = `translate(${panX}px, ${panY}px) scale(${viewScale})`;
-}
-
-function handleWheelZoom(e) {
-    if(e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -0.1 : 0.1;
-        adjustZoom(delta);
-    }
+    updateSelectBoxes(); updateAttributeList(); renderConstraints(); renderDesks();
 }
 
 /* --- GUI HANDLERS --- */
 function addItem(type) {
-    saveState(); // Før endring
-    
-    // Sentrer innsetting i synlig område
+    saveState(); 
     const container = document.getElementById('classroom-container');
-    // Enkel matte for å finne senter av viewet relativt til canvas
+    
+    // Beregn senter av SYNLIG område for å plassere nye ting der
     const centerX = (-panX + container.clientWidth/2) / viewScale;
     const centerY = (-panY + container.clientHeight/2) / viewScale;
     
@@ -301,14 +258,10 @@ function addItem(type) {
 
     const w = 110; const h = 80;
     let offsets = [];
-    let isFurniture = false;
 
-    // Fysiske elementer
     if(type === 'door' || type === 'window' || type === 'obstacle') {
-        isFurniture = true;
         offsets.push({x:0, y:0, type: type});
     } else {
-        // Pulter
         switch(type) {
             case 'single': offsets.push({x:0, y:0}); break;
             case 'pair': offsets.push({x:0, y:0}, {x:w, y:0}); break;
@@ -323,12 +276,7 @@ function addItem(type) {
     offsets.forEach(off => {
         deskCounter++;
         const id = `item-${deskCounter}`;
-        desks.push({
-            id: id,
-            type: off.type || 'desk', // Default to desk
-            top: startY + off.y,
-            left: startX + off.x
-        });
+        desks.push({ id: id, type: off.type || 'desk', top: startY + off.y, left: startX + off.x });
         selectedIds.add(id);
     });
 
@@ -343,11 +291,7 @@ function addItem(type) {
 function deleteSelected() {
     if(selectedIds.size === 0) return alert("Marker noe først.");
     saveState();
-    
-    selectedIds.forEach(id => {
-        delete assignments[id];
-        delete locks[id];
-    });
+    selectedIds.forEach(id => { delete assignments[id]; delete locks[id]; });
     desks = desks.filter(d => !selectedIds.has(d.id));
     selectedIds.clear();
     renderDesks();
@@ -361,97 +305,60 @@ function clearRoom() {
     }
 }
 
-/* --- MOUSE & KEYBOARD EVENT HANDLERS --- */
+/* --- MOUSE & KEYBOARD HANDLERS --- */
 let isSpacePressed = false;
 
 function handleKeyDown(e) {
     if(e.code === 'Space' && !isSpacePressed) {
         if(e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') {
-            e.preventDefault(); // Hindre scroll
+            e.preventDefault(); 
             isSpacePressed = true;
             document.getElementById('classroom-container').classList.add('panning');
         }
     }
-    
-    // Slett knapp
     if((e.key === 'Delete' || e.key === 'Backspace') && editMode) {
         if(e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') {
-            if(selectedIds.size > 0) {
-                e.preventDefault();
-                deleteSelected();
-            }
+            if(selectedIds.size > 0) { e.preventDefault(); deleteSelected(); }
         }
     }
-
-    // Undo/Redo
-    if((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        e.preventDefault();
-        undo();
-    }
-    if((e.ctrlKey || e.metaKey) && e.key === 'y') {
-        e.preventDefault();
-        redo();
-    }
+    if((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+    if((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
 }
 
 function handleKeyUp(e) {
     if(e.code === 'Space') {
-        isSpacePressed = false;
-        isPanning = false;
+        isSpacePressed = false; isPanning = false;
         document.getElementById('classroom-container').classList.remove('panning');
     }
 }
 
 function handleContainerMouseDown(e) {
-    // Sjekk om vi skal Panorere (Space holdt inne)
     if(isSpacePressed) {
-        isPanning = true;
-        panStart = {x: e.clientX, y: e.clientY};
-        return;
+        isPanning = true; panStart = {x: e.clientX, y: e.clientY}; return;
     }
-    
-    // Sjekk markering i rommet
-    if(editMode && e.target.id === 'classroom-container' || e.target.id === 'classroom') {
-        if(!e.shiftKey) {
-            selectedIds.clear();
-            renderDesks();
-        }
+    if(editMode && (e.target.id === 'classroom-container' || e.target.id === 'classroom')) {
+        if(!e.shiftKey) { selectedIds.clear(); renderDesks(); }
         isSelecting = true;
-        // Må korrigere for viewScale og Pan når vi beregner startposisjon i Canvas-koordinater
         const rect = document.getElementById('classroom').getBoundingClientRect();
-        selectionBoxStart = {
-            x: (e.clientX - rect.left) / viewScale,
-            y: (e.clientY - rect.top) / viewScale
-        };
-        
+        selectionBoxStart = { x: (e.clientX - rect.left) / viewScale, y: (e.clientY - rect.top) / viewScale };
         const box = document.getElementById('selection-box');
-        box.style.display = 'block';
-        box.style.left = selectionBoxStart.x + 'px';
-        box.style.top = selectionBoxStart.y + 'px';
+        box.style.display = 'block'; box.style.left = selectionBoxStart.x + 'px'; box.style.top = selectionBoxStart.y + 'px';
         box.style.width = '0'; box.style.height = '0';
     }
 }
 
 function handleItemMouseDown(e, id) {
     if(!editMode) return;
-    e.stopPropagation(); // Ikke trigger container click
-    e.preventDefault(); // Ikke select text
-
-    if(isSpacePressed) return; // Ikke flytt hvis vi panorerer
+    e.stopPropagation(); e.preventDefault();
+    if(isSpacePressed) return;
 
     if(e.shiftKey) {
-        if(selectedIds.has(id)) selectedIds.delete(id);
-        else selectedIds.add(id);
+        if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
         renderDesks();
     } else {
-        if(!selectedIds.has(id)) {
-            selectedIds.clear();
-            selectedIds.add(id);
-            renderDesks();
-        }
+        if(!selectedIds.has(id)) { selectedIds.clear(); selectedIds.add(id); renderDesks(); }
     }
 
-    // Start Dragging
     isDraggingItems = true;
     dragStartMouse = {x: e.clientX, y: e.clientY};
     itemStartPos = {};
@@ -459,27 +366,19 @@ function handleItemMouseDown(e, id) {
         const d = desks.find(x => x.id === itemId);
         if(d) itemStartPos[itemId] = {top: d.top, left: d.left};
     });
-    
-    // Lagre state før vi flytter, i tilfelle vi slipper
-    // (Optimalisering: Vi lagrer egentlig først ved mouseUp for å unngå 100 lagringer mens man drar)
 }
 
 function handleGlobalMouseMove(e) {
-    // 1. Panorering
     if(isPanning) {
         const dx = e.clientX - panStart.x;
         const dy = e.clientY - panStart.y;
-        panX += dx;
-        panY += dy;
+        panX += dx; panY += dy;
         panStart = {x: e.clientX, y: e.clientY};
-        updateViewTransform();
-        return;
+        updateViewTransform(); return;
     }
 
-    // 2. Flytte Objekter
     if(isDraggingItems && editMode) {
         e.preventDefault();
-        // VIKTIG: Delta må deles på scale for at musa skal følge objektet
         const dx = (e.clientX - dragStartMouse.x) / viewScale;
         const dy = (e.clientY - dragStartMouse.y) / viewScale;
 
@@ -487,78 +386,55 @@ function handleGlobalMouseMove(e) {
             const d = desks.find(x => x.id === id);
             const start = itemStartPos[id];
             if(d && start) {
-                // Snap to grid (10px)
                 d.left = Math.round((start.left + dx)/10)*10;
                 d.top = Math.round((start.top + dy)/10)*10;
-                
-                // Update DOM directly for performance
                 const el = document.getElementById(id);
-                if(el) {
-                    el.style.left = d.left + 'px';
-                    el.style.top = d.top + 'px';
-                }
+                if(el) { el.style.left = d.left + 'px'; el.style.top = d.top + 'px'; }
             }
         });
         return;
     }
 
-    // 3. Markering (Selection Box)
     if(isSelecting && editMode) {
         e.preventDefault();
         const rect = document.getElementById('classroom').getBoundingClientRect();
         const currX = (e.clientX - rect.left) / viewScale;
         const currY = (e.clientY - rect.top) / viewScale;
-
-        const x = Math.min(selectionBoxStart.x, currX);
-        const y = Math.min(selectionBoxStart.y, currY);
-        const w = Math.abs(currX - selectionBoxStart.x);
-        const h = Math.abs(currY - selectionBoxStart.y);
+        const x = Math.min(selectionBoxStart.x, currX); const y = Math.min(selectionBoxStart.y, currY);
+        const w = Math.abs(currX - selectionBoxStart.x); const h = Math.abs(currY - selectionBoxStart.y);
 
         const box = document.getElementById('selection-box');
         box.style.left = x + 'px'; box.style.top = y + 'px';
         box.style.width = w + 'px'; box.style.height = h + 'px';
 
-        // Collision Check
         desks.forEach(d => {
-            // Sjekk senterpunkt eller enkel boks
             const dW = (d.type === 'door' ? 80 : (d.type === 'obstacle' ? 60 : 100));
             const dH = (d.type === 'door' ? 80 : (d.type === 'obstacle' ? 60 : 60));
-            
-            const overlap = (d.left < x + w && d.left + dW > x &&
-                             d.top < y + h && d.top + dH > y);
-            
+            const overlap = (d.left < x + w && d.left + dW > x && d.top < y + h && d.top + dH > y);
             if(overlap) selectedIds.add(d.id);
             else if(!e.shiftKey) selectedIds.delete(d.id);
         });
-        
-        renderDesks(false); // Render uten full redraw (kun classes)
+        renderDesks(false);
     }
 }
 
 function handleGlobalMouseUp(e) {
-    if(isDraggingItems) {
-        isDraggingItems = false;
-        saveState(); // Lagre posisjon etter flytting
-    }
+    if(isDraggingItems) { isDraggingItems = false; saveState(); }
     if(isSelecting) {
         isSelecting = false;
         document.getElementById('selection-box').style.display = 'none';
         renderDesks();
     }
-    if(isPanning) {
-        isPanning = false;
-    }
+    if(isPanning) isPanning = false;
 }
 
 /* --- RENDERING --- */
 function renderDesks(fullRedraw = true) {
     if(!fullRedraw) {
-        // Bare oppdater selection classes
         desks.forEach(d => {
             const el = document.getElementById(d.id);
             if(el) {
-                if(selectedIds.has(d.id)) el.classList.add('selected');
-                else el.classList.remove('selected');
+                if(selectedIds.has(d.id)) el.classList.add('selected'); else el.classList.remove('selected');
             }
         });
         return;
@@ -577,51 +453,40 @@ function renderDesks(fullRedraw = true) {
         el.className = `desk ${d.type ? 'type-'+d.type : 'type-desk'} ${selectedIds.has(d.id) ? 'selected' : ''}`;
         if(editMode) el.classList.add('moveable');
         
-        el.style.top = d.top + 'px';
-        el.style.left = d.left + 'px';
+        el.style.top = d.top + 'px'; el.style.left = d.left + 'px';
 
-        // Mouse events
         if(editMode) {
             el.addEventListener('mousedown', (e) => handleItemMouseDown(e, d.id));
         } else if(d.type === 'desk' || !d.type) {
-            // Drop zone only for desks
             el.addEventListener('dragover', handleDragOver);
             el.addEventListener('drop', handleDropStudent);
         }
 
-        // Student Card (kun for pulter)
         if((d.type === 'desk' || !d.type) && assignments[d.id]) {
             const name = assignments[d.id];
             const isLocked = locks[d.id];
-            
             const card = document.createElement('div');
             card.className = `student-card ${isLocked ? 'locked' : ''}`;
             card.innerText = name;
             card.draggable = !editMode;
             card.dataset.deskId = d.id;
-            
             if(isLocked) card.innerHTML += ' <i class="fas fa-lock lock-icon"></i>';
-            
             card.addEventListener('dblclick', (e) => { e.stopPropagation(); toggleLock(d.id); });
             if(!editMode) card.addEventListener('dragstart', handleDragStartStudent);
             if(editMode) card.style.pointerEvents = 'none';
-
             el.appendChild(card);
         }
-
         room.appendChild(el);
     });
 }
 
-/* --- GENERATOR & LOGIC --- */
+/* --- LOGIC --- */
 function parseStudents() {
     saveState();
     const raw = document.getElementById('studentInput').value;
     students = raw.split('\n').map(s => s.trim()).filter(s => s !== "");
     document.getElementById('studentListCount').innerText = `${students.length} elever`;
-    updateSelectBoxes();
-    updateAttributeList();
-    saveGlobalData();
+    updateSelectBoxes(); updateAttributeList(); saveGlobalData();
 }
 
 function updateSelectBoxes() {
@@ -638,28 +503,16 @@ function updateAttributeList() {
         l.appendChild(li);
     });
 }
-function toggleAttr(n) {
-    saveState();
-    if(!studentAttributes[n]) studentAttributes[n] = {};
-    studentAttributes[n].front = !studentAttributes[n].front;
-    saveGlobalData();
-}
+function toggleAttr(n) { saveState(); if(!studentAttributes[n]) studentAttributes[n] = {}; studentAttributes[n].front = !studentAttributes[n].front; saveGlobalData(); }
 
 function addConstraint() {
     saveState();
-    const p1 = document.getElementById('conStudent1').value;
-    const p2 = document.getElementById('conStudent2').value;
-    if(p1 && p2 && p1!==p2) {
-        constraints.push({p1, p2});
-        renderConstraints();
-        saveGlobalData();
-    }
+    const p1 = document.getElementById('conStudent1').value; const p2 = document.getElementById('conStudent2').value;
+    if(p1 && p2 && p1!==p2) { constraints.push({p1, p2}); renderConstraints(); saveGlobalData(); }
 }
 function renderConstraints() {
     const l = document.getElementById('constraintList'); l.innerHTML = '';
-    constraints.forEach((c,i) => {
-        l.innerHTML += `<li>${c.p1} - ${c.p2} <i class="fas fa-trash" onclick="delConstraint(${i})"></i></li>`;
-    });
+    constraints.forEach((c,i) => { l.innerHTML += `<li>${c.p1} - ${c.p2} <i class="fas fa-trash" onclick="delConstraint(${i})"></i></li>`; });
 }
 function delConstraint(i) { saveState(); constraints.splice(i,1); renderConstraints(); saveGlobalData(); }
 
@@ -668,119 +521,56 @@ function showTab(t) {
     document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active'));
     document.getElementById('tab-'+t).classList.add('active');
 }
+function toggleEditMode() { editMode = document.getElementById('editMode').checked; selectedIds.clear(); renderDesks(); }
+function toggleView() { document.getElementById('classroom').classList.toggle('teacher-mode'); }
 
-function toggleEditMode() {
-    editMode = document.getElementById('editMode').checked;
-    selectedIds.clear();
-    renderDesks();
-}
-function toggleView() {
-    document.getElementById('classroom').classList.toggle('teacher-mode');
-}
-
-function handleDragStartStudent(e) {
-    draggedStudent = {name: this.innerText.trim(), fromId: this.dataset.deskId};
-    e.dataTransfer.effectAllowed = "move";
-}
+function handleDragStartStudent(e) { draggedStudent = {name: this.innerText.trim(), fromId: this.dataset.deskId}; e.dataTransfer.effectAllowed = "move"; }
 function handleDragOver(e) { e.preventDefault(); if(!editMode) e.dataTransfer.dropEffect = "move"; }
 function handleDropStudent(e) {
     e.preventDefault(); if(editMode) return;
     saveState();
-    const targetId = this.id;
-    const sourceId = draggedStudent.fromId;
-    const tVal = assignments[targetId];
-    const sVal = assignments[sourceId]; // Navnet
-    
-    // Swap logic
-    assignments[targetId] = sVal;
-    if(tVal) assignments[sourceId] = tVal;
-    else delete assignments[sourceId];
-    
-    renderDesks();
-    saveGlobalData();
+    const targetId = this.id; const sourceId = draggedStudent.fromId;
+    const tVal = assignments[targetId]; const sVal = assignments[sourceId];
+    assignments[targetId] = sVal; if(tVal) assignments[sourceId] = tVal; else delete assignments[sourceId];
+    renderDesks(); saveGlobalData();
 }
-function toggleLock(id) {
-    saveState();
-    if(locks[id]) delete locks[id]; else locks[id] = true;
-    renderDesks();
-    saveGlobalData();
-}
-function setupInputListeners() {
-    const input = document.getElementById('studentInput');
-    input.addEventListener('change', parseStudents);
-}
+function toggleLock(id) { saveState(); if(locks[id]) delete locks[id]; else locks[id] = true; renderDesks(); saveGlobalData(); }
+function setupInputListeners() { document.getElementById('studentInput').addEventListener('change', parseStudents); }
 
-/* --- GENERATION ALGO --- */
 function generateSeating() {
     saveState();
-    
-    // 1. Filtrer pulter (kun type 'desk') og elever
     const validDesks = desks.filter(d => !d.type || d.type === 'desk');
-    let locked = [];
-    Object.keys(locks).forEach(id => { if(assignments[id]) locked.push(assignments[id]); });
-    
+    let locked = []; Object.keys(locks).forEach(id => { if(assignments[id]) locked.push(assignments[id]); });
     let availableStudents = students.filter(s => !locked.includes(s));
     let availableDeskIds = validDesks.filter(d => !locks[d.id]).map(d => d.id);
-    
-    // Sorter pulter etter Y (front row first)
-    // Finn desk objekter for sorting
     let sortableDesks = availableDeskIds.map(id => desks.find(d => d.id === id));
     sortableDesks.sort((a,b) => a.top - b.top);
-    
-    // Fjern eksisterende assignments på ledige pulter
     availableDeskIds.forEach(id => delete assignments[id]);
     
-    // Prioriter "Front" elever
     let front = availableStudents.filter(s => studentAttributes[s]?.front);
     let others = availableStudents.filter(s => !studentAttributes[s]?.front);
-    
-    // Enkel Monte Carlo (100 forsøk)
-    let bestMapping = null;
-    let minConflicts = Infinity;
+    let bestMapping = null; let minConflicts = Infinity;
     
     for(let i=0; i<100; i++) {
         let tempAssign = {...assignments};
         shuffle(front); shuffle(others);
         let pool = [...front, ...others];
-        
-        // Fyll pulter
-        for(let j=0; j<Math.min(pool.length, sortableDesks.length); j++) {
-            tempAssign[sortableDesks[j].id] = pool[j];
-        }
-        
+        for(let j=0; j<Math.min(pool.length, sortableDesks.length); j++) { tempAssign[sortableDesks[j].id] = pool[j]; }
         let conf = countConflicts(tempAssign);
-        if(conf < minConflicts) {
-            minConflicts = conf;
-            bestMapping = tempAssign;
-        }
+        if(conf < minConflicts) { minConflicts = conf; bestMapping = tempAssign; }
         if(minConflicts === 0) break;
     }
-    
     if(bestMapping) assignments = bestMapping;
-    renderDesks();
-    saveGlobalData();
+    renderDesks(); saveGlobalData();
 }
-
 function countConflicts(mapping) {
-    let c = 0;
-    // Map student -> desk pos
-    let sPos = {};
-    for(let id in mapping) {
-        let s = mapping[id];
-        let d = desks.find(x => x.id === id);
-        if(d) sPos[s] = d;
-    }
-    
+    let c = 0; let sPos = {};
+    for(let id in mapping) { let d = desks.find(x => x.id === id); if(d) sPos[mapping[id]] = d; }
     constraints.forEach(con => {
-        let d1 = sPos[con.p1];
-        let d2 = sPos[con.p2];
-        if(d1 && d2) {
-            let dist = Math.hypot(d1.left-d2.left, d1.top-d2.top);
-            if(dist < 140) c++; // Naboer
-        }
+        let d1 = sPos[con.p1]; let d2 = sPos[con.p2];
+        if(d1 && d2 && Math.hypot(d1.left-d2.left, d1.top-d2.top) < 140) c++;
     });
     return c;
 }
-
 function shuffle(a) { for(let i=a.length-1; i>0; i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }}
 function printClassroom() { window.print(); }
